@@ -1,0 +1,61 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+
+# CocoaPods / Carthage (unused, ignore if introduced)
+Pods/
+Carthage/Build/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Secrets / local config
+.env
+.env.*
+*.pem
+*.p12
+*.mobileprovision
+Secrets.xcconfig
+Local.xcconfig
+**/GoogleService-Info.plist
+
+# Archives & exports
+*.xcarchive
+ExportOptions.plist
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# IDEs
+.idea/
+*.swp
+*~
+.vscode/
+.cursor/
