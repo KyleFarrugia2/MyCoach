@@ -353,6 +353,7 @@ struct MCMealCard: View {
     var onSwap: ((MealItem) -> Void)? = nil
     var onToggleLock: ((MealItem) -> Void)? = nil
     var onLogMeal: (() -> Void)? = nil
+    var onSwapMeal: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -392,7 +393,7 @@ struct MCMealCard: View {
                                 .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
                         }
                         Spacer()
-                        if let onToggleLock {
+                        if let onToggleLock, MealPlanner.spec(for: item.food).role != .supplement {
                             Button {
                                 onToggleLock(item)
                             } label: {
@@ -401,7 +402,7 @@ struct MCMealCard: View {
                             }
                             .accessibilityLabel(item.isLocked ? "Unlock \(item.food.name)" : "Lock \(item.food.name)")
                         }
-                        if let onSwap {
+                        if let onSwap, MealPlanner.spec(for: item.food).role != .supplement {
                             Button("Swap") { onSwap(item) }
                                 .font(MCTheme.Typography.caption)
                                 .foregroundStyle(MCTheme.ColorToken.primary)
@@ -410,11 +411,22 @@ struct MCMealCard: View {
                     .padding(.vertical, 2)
                 }
 
-                if let onLogMeal {
-                    Button("Log Planned Meal", action: onLogMeal)
+                HStack {
+                    if let onLogMeal {
+                        Button("Log Planned Meal", action: onLogMeal)
+                            .font(MCTheme.Typography.callout)
+                            .foregroundStyle(MCTheme.ColorToken.primary)
+                    }
+                    Spacer()
+                    if let onSwapMeal {
+                        Button(action: onSwapMeal) {
+                            Label("Swap meal", systemImage: "arrow.triangle.2.circlepath")
+                        }
                         .font(MCTheme.Typography.callout)
                         .foregroundStyle(MCTheme.ColorToken.primary)
+                    }
                 }
+                .buttonStyle(.borderless)
             }
         }
     }

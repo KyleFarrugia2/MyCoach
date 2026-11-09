@@ -16,6 +16,8 @@ struct FoodSearchView: View {
     @State private var amountText = "100"
     @State private var useServings = false
     @State private var searchTask: Task<Void, Never>?
+    @State private var showScanner = false
+    @State private var scannedFood: FoodItem?
 
     var body: some View {
         NavigationStack {
@@ -37,6 +39,27 @@ struct FoodSearchView: View {
                             dismiss()
                         }
                     }
+                }
+                if selectedFood == nil {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showScanner = true
+                        } label: {
+                            Image(systemName: "barcode.viewfinder")
+                        }
+                        .accessibilityLabel("Scan barcode")
+                    }
+                }
+            }
+            .sheet(isPresented: $showScanner, onDismiss: {
+                if let scannedFood {
+                    select(scannedFood)
+                    self.scannedFood = nil
+                }
+            }) {
+                ScanFoodFlowView { food in
+                    scannedFood = food
+                    showScanner = false
                 }
             }
             .onAppear {
@@ -74,15 +97,19 @@ struct FoodSearchView: View {
             }
             ForEach(results) { food in
                 Button {
-                    selectedFood = food
-                    useServings = food.servingGrams == nil
-                    amountText = useServings ? "1" : "100"
+                    select(food)
                 } label: {
                     MCFoodRow(food: food, showsChevron: true)
                 }
             }
         }
         .searchable(text: $query, prompt: "Search chicken, rice, yogurt…")
+    }
+
+    private func select(_ food: FoodItem) {
+        selectedFood = food
+        useServings = food.servingGrams == nil
+        amountText = useServings ? "1" : "100"
     }
 
     private func logDetail(_ food: FoodItem) -> some View {

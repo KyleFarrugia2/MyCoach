@@ -243,20 +243,12 @@ struct OnboardingFlowView: View {
     private var welcomeContent: some View {
         VStack(spacing: MCTheme.Spacing.xl) {
             Spacer(minLength: 40)
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [MCTheme.ColorToken.primary, MCTheme.ColorToken.navy],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 96, height: 96)
-                Text("M")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-            }
+            Image("AppLogo")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 112, height: 112)
+                .shadow(color: MCTheme.ColorToken.navy.opacity(0.25), radius: 16, y: 8)
+                .accessibilityLabel("\(AppIdentity.displayName) logo")
             VStack(spacing: MCTheme.Spacing.sm) {
                 Text(AppIdentity.displayName)
                     .font(MCTheme.Typography.hero)

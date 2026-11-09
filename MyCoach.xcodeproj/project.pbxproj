@@ -8,9 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		0C250081FF1E0C1B5DC59244 /* CoachingDecisionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10769C5FC86784CA570AE227 /* CoachingDecisionEngine.swift */; };
+		148AB94EDEAC60DED72A5F19 /* AdaptiveModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15A4E4A6A84E9264AE3DD78 /* AdaptiveModelTests.swift */; };
 		16668FAEA8B1ADB301CF21E2 /* AppIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D0BAD2321724CA50314CC7 /* AppIdentity.swift */; };
 		1F8B83904F6A77D5F731E190 /* FoodCatalogProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B0FCCD59EB95E7F9D158D4F /* FoodCatalogProvider.swift */; };
 		1FEB459D5D68E04858779FF1 /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B5D345865803FE79BD2ADC79 /* StoreKit.framework */; };
+		27E011E848B7597D3AA9B7D0 /* MealPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5C04F3E71E6931328799DA /* MealPlannerTests.swift */; };
 		2A1B7F2BA8BAB802982D7277 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 460911AE9067737E7A996752 /* PaywallView.swift */; };
 		2A579EB596140A061B672614 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C494BE2441E6CE2F067FF04A /* AppEnvironment.swift */; };
 		2CE906C574F6EB8A8014F49C /* FoodSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CADF0F609214211F5CF8E64 /* FoodSearchView.swift */; };
@@ -19,9 +21,12 @@
 		375822020BCB93A9F927FF74 /* CoachingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2E2A761F41F8426D022B50B /* CoachingModels.swift */; };
 		3AF1859934009C7363660737 /* View+Appearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C784582F625F45F77AE18E5 /* View+Appearance.swift */; };
 		3F96ECF06631D83A96006375 /* MyCoach.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 8AB3B0DC9567603E45366503 /* MyCoach.storekit */; };
+		3FE8592DA34EE540BFE61D4E /* AdaptiveModelFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2641A69D611A515D6D37C1 /* AdaptiveModelFixture.swift */; };
+		412E1D20B6F0C19A801EE8C4 /* FoodsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37AC064A47E99CA1ECC1055 /* FoodsView.swift */; };
 		4357021EC0404DE03196E25A /* ProgressViewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E224BEC7141ABB9CFC5E57E8 /* ProgressViewScreen.swift */; };
 		461B57BA913F9DE69A0C915E /* MCTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF3CC8EEEC8B2C1F4CDB7D3 /* MCTheme.swift */; };
 		46CEDCDC3BAEA22A7A1726CF /* CoachingCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 338DD11D2B7E25FB9E8C2A25 /* CoachingCalendar.swift */; };
+		50D367660D4D931ED180FFEE /* MealPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED78EFFE29EEE4D1A1B84DAF /* MealPlanner.swift */; };
 		51BD1567387133A8F9EF372D /* FoodModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282E76E639E276EC31B5D5A0 /* FoodModels.swift */; };
 		548CF444923B6BACF6A4F67D /* MyCoachApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27D9FC2AF169698314D21E56 /* MyCoachApp.swift */; };
 		55533CFF2E783A65CFD1D6CA /* CoachChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 328177BB0A67FCAE701D73C8 /* CoachChatView.swift */; };
@@ -31,10 +36,15 @@
 		652F2FA79E5B9D2F04B360EA /* MealPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5ACF507FA9AC83314FC9B7 /* MealPlanView.swift */; };
 		69418145DA66ADF117A4797E /* MealPlanSolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9C8231948CEBF4B9A1CACF8 /* MealPlanSolverTests.swift */; };
 		6CEC8288A13924042EF7BF9A /* ActiveWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7429D56E12C7106A746C73AC /* ActiveWorkoutView.swift */; };
+		6D46D2496E8A1571185467F7 /* BarcodeLookupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 044004B3DE2B520217DB783C /* BarcodeLookupTests.swift */; };
+		75DB5A7C45B04CCE574F0D8B /* MealPlannerFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B32B3F05CB6E82C7965733 /* MealPlannerFixture.swift */; };
 		7A627C7A0F3242AFB4E113C9 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2CF2684C1AD09711ADB64A6 /* RootView.swift */; };
 		7CA8BD12392E25E77723431E /* UserModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE3CD136B74E0DFB768879A /* UserModels.swift */; };
+		7E528359DF25B5BC978C8E38 /* BarcodeLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFCCE34A4E171F6763C74D2C /* BarcodeLookup.swift */; };
 		808914D5267B436FDA0472B1 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EB496A343090620F1D4CF6B /* KeychainStore.swift */; };
 		84FD21FB21AFD2CFA206EEE1 /* CoachingDecisionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE97F7B3750169F18395596C /* CoachingDecisionEngineTests.swift */; };
+		8750D8F05FC6FCD5A504F8E6 /* AdaptiveModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0A43066C984B9EF49BF682 /* AdaptiveModel.swift */; };
+		8BAAA0CFFABD683A1840DD0A /* AdaptiveModelCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D7D42C43317CB8948A9C8D7 /* AdaptiveModelCard.swift */; };
 		8D36C2173A02825C610A500A /* NutritionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB52B82637D586E588AE021A /* NutritionModels.swift */; };
 		91CBC12F9545F0DACA8A12C5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EBC6D1FAA6369718A8CF99FB /* PrivacyInfo.xcprivacy */; };
 		93EA4C650F34426129EC3DA7 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED06EBBD86879F40111640BA /* SettingsView.swift */; };
@@ -60,6 +70,7 @@
 		F85A26672042999F9EA696F8 /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8505F32AEB322FE8143C0A /* OnboardingFlowView.swift */; };
 		F89B01FD461EBAFA5AC92EA1 /* CoachingConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD89DDD6A78E785DC6C21F5 /* CoachingConfig.swift */; };
 		F9639E32C46ADC82FD948D45 /* WorkoutModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275F7DC8D340ADA4C53BF593 /* WorkoutModels.swift */; };
+		F9E0EBD76DE7EF5295116766 /* BarcodeScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9ED5F43E15D07764BD18BC /* BarcodeScannerView.swift */; };
 /* End PBXBuildFile section */
 /* Begin PBXContainerItemProxy section */
 		CFA0545CA24C7CEAD1C9CD3A /* PBXContainerItemProxy */ = {
@@ -79,6 +90,7 @@
 /* End PBXContainerItemProxy section */
 /* Begin PBXFileReference section */
 		032F94AF5A406088BF07D625 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		044004B3DE2B520217DB783C /* BarcodeLookupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeLookupTests.swift; sourceTree = "<group>"; };
 		0C9FF6EF774BF635ED3C7754 /* CoachAIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachAIProvider.swift; sourceTree = "<group>"; };
 		10769C5FC86784CA570AE227 /* CoachingDecisionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachingDecisionEngine.swift; sourceTree = "<group>"; };
 		26C05907A2C414E3E01A441D /* MealPlanSolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanSolver.swift; sourceTree = "<group>"; };
@@ -105,6 +117,7 @@
 		6E4F7D69BBBE91B884D0F43B /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		7429D56E12C7106A746C73AC /* ActiveWorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveWorkoutView.swift; sourceTree = "<group>"; };
 		77F76D2421050822173A633D /* AppDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataStore.swift; sourceTree = "<group>"; };
+		79B32B3F05CB6E82C7965733 /* MealPlannerFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlannerFixture.swift; sourceTree = "<group>"; };
 		7AA88678EDF341774EDAFC1C /* CoachHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachHomeView.swift; sourceTree = "<group>"; };
 		7AAA52C730F43B2475E6D873 /* MCComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCComponents.swift; sourceTree = "<group>"; };
 		7B0FCCD59EB95E7F9D158D4F /* FoodCatalogProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodCatalogProvider.swift; sourceTree = "<group>"; };
@@ -112,6 +125,9 @@
 		8997809BE7033F5C5B0702DD /* MyCoachUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyCoachUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A13385014408037F653BE02 /* WeeklyCheckInFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyCheckInFlowView.swift; sourceTree = "<group>"; };
 		8AB3B0DC9567603E45366503 /* MyCoach.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = MyCoach.storekit; sourceTree = "<group>"; };
+		8D7D42C43317CB8948A9C8D7 /* AdaptiveModelCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveModelCard.swift; sourceTree = "<group>"; };
+		8F5C04F3E71E6931328799DA /* MealPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlannerTests.swift; sourceTree = "<group>"; };
+		9B9ED5F43E15D07764BD18BC /* BarcodeScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeScannerView.swift; sourceTree = "<group>"; };
 		A2A93B03479ABE9F5EB3F73D /* NutritionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionEngineTests.swift; sourceTree = "<group>"; };
 		A3A88AF97EDCDD0905C62E3A /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		B2CF2684C1AD09711ADB64A6 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -122,7 +138,9 @@
 		C494BE2441E6CE2F067FF04A /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		C9C8231948CEBF4B9A1CACF8 /* MealPlanSolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanSolverTests.swift; sourceTree = "<group>"; };
 		CAA14AE7F1476E735E4F6DCB /* CustomFoodEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomFoodEditorView.swift; sourceTree = "<group>"; };
+		D37AC064A47E99CA1ECC1055 /* FoodsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodsView.swift; sourceTree = "<group>"; };
 		DA02681B004B54049B687B3A /* MyCoach.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA2641A69D611A515D6D37C1 /* AdaptiveModelFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveModelFixture.swift; sourceTree = "<group>"; };
 		DB52B82637D586E588AE021A /* NutritionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionModels.swift; sourceTree = "<group>"; };
 		DC8505F32AEB322FE8143C0A /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
 		E224BEC7141ABB9CFC5E57E8 /* ProgressViewScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressViewScreen.swift; sourceTree = "<group>"; };
@@ -130,10 +148,14 @@
 		ED06EBBD86879F40111640BA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		ED48BB9C0366BF8D452BF88B /* WeightModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightModels.swift; sourceTree = "<group>"; };
 		ED5FC8BDAA430979DEFBF7A6 /* MyCoachUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyCoachUITests.swift; sourceTree = "<group>"; };
+		ED78EFFE29EEE4D1A1B84DAF /* MealPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanner.swift; sourceTree = "<group>"; };
+		EFCCE34A4E171F6763C74D2C /* BarcodeLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarcodeLookup.swift; sourceTree = "<group>"; };
+		F15A4E4A6A84E9264AE3DD78 /* AdaptiveModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveModelTests.swift; sourceTree = "<group>"; };
 		F422E1F3095C7500C61B6FF3 /* StepService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepService.swift; sourceTree = "<group>"; };
 		F65186B45D8ED3E8DBBAFD87 /* UnitConversion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitConversion.swift; sourceTree = "<group>"; };
 		F7905EA28CE73AA6B8492542 /* FeatureAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureAccess.swift; sourceTree = "<group>"; };
 		F8D684C844B2E0B160BCEECA /* TodayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayView.swift; sourceTree = "<group>"; };
+		FE0A43066C984B9EF49BF682 /* AdaptiveModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 /* Begin PBXFrameworksBuildPhase section */
 		C01791CEB4B42CBEF26721A7 /* Frameworks */ = {
@@ -237,6 +259,7 @@
 			children = (
 				E31C03A7B188B886B2052B93 /* Coach */,
 				8ABAF1BA208C43347F3FD927 /* FoodLog */,
+				811D1D382402B5394408C746 /* Foods */,
 				60105AFE74ADDF18E11F54B5 /* MealPlan */,
 				6B19F844A780B97EE270B09F /* Onboarding */,
 				9ED483794D452D51852844E3 /* Progress */,
@@ -251,6 +274,7 @@
 		E31C03A7B188B886B2052B93 /* Coach */ = {
 			isa = PBXGroup;
 			children = (
+				8D7D42C43317CB8948A9C8D7 /* AdaptiveModelCard.swift */,
 				328177BB0A67FCAE701D73C8 /* CoachChatView.swift */,
 				7AA88678EDF341774EDAFC1C /* CoachHomeView.swift */,
 				8A13385014408037F653BE02 /* WeeklyCheckInFlowView.swift */,
@@ -266,6 +290,15 @@
 				6CADF0F609214211F5CF8E64 /* FoodSearchView.swift */,
 			);
 			path = FoodLog;
+			sourceTree = "<group>";
+		};
+		811D1D382402B5394408C746 /* Foods */ = {
+			isa = PBXGroup;
+			children = (
+				9B9ED5F43E15D07764BD18BC /* BarcodeScannerView.swift */,
+				D37AC064A47E99CA1ECC1055 /* FoodsView.swift */,
+			);
+			path = Foods;
 			sourceTree = "<group>";
 		};
 		60105AFE74ADDF18E11F54B5 /* MealPlan */ = {
@@ -361,6 +394,7 @@
 			isa = PBXGroup;
 			children = (
 				1D5A5948157F4F83D26BCC6C /* AI */,
+				930F9BCA9ABCB0CE5E12772B /* Adaptive */,
 				F1E781661A9B4C405C49D53B /* Coaching */,
 				6B332BF6A898926091359ED0 /* FoodDatabase */,
 				1B293D2145855E4E9504FBA8 /* Health */,
@@ -380,6 +414,14 @@
 			path = AI;
 			sourceTree = "<group>";
 		};
+		930F9BCA9ABCB0CE5E12772B /* Adaptive */ = {
+			isa = PBXGroup;
+			children = (
+				FE0A43066C984B9EF49BF682 /* AdaptiveModel.swift */,
+			);
+			path = Adaptive;
+			sourceTree = "<group>";
+		};
 		F1E781661A9B4C405C49D53B /* Coaching */ = {
 			isa = PBXGroup;
 			children = (
@@ -391,6 +433,7 @@
 		6B332BF6A898926091359ED0 /* FoodDatabase */ = {
 			isa = PBXGroup;
 			children = (
+				EFCCE34A4E171F6763C74D2C /* BarcodeLookup.swift */,
 				7B0FCCD59EB95E7F9D158D4F /* FoodCatalogProvider.swift */,
 			);
 			path = FoodDatabase;
@@ -416,6 +459,7 @@
 			isa = PBXGroup;
 			children = (
 				26C05907A2C414E3E01A441D /* MealPlanSolver.swift */,
+				ED78EFFE29EEE4D1A1B84DAF /* MealPlanner.swift */,
 				2F3F6BF7FE71E451111CB7FF /* NutritionEngine.swift */,
 			);
 			path = Nutrition;
@@ -441,8 +485,13 @@
 		586731380BA388F7A61736B0 /* MyCoachTests */ = {
 			isa = PBXGroup;
 			children = (
+				DA2641A69D611A515D6D37C1 /* AdaptiveModelFixture.swift */,
+				F15A4E4A6A84E9264AE3DD78 /* AdaptiveModelTests.swift */,
+				044004B3DE2B520217DB783C /* BarcodeLookupTests.swift */,
 				BE97F7B3750169F18395596C /* CoachingDecisionEngineTests.swift */,
 				C9C8231948CEBF4B9A1CACF8 /* MealPlanSolverTests.swift */,
+				79B32B3F05CB6E82C7965733 /* MealPlannerFixture.swift */,
+				8F5C04F3E71E6931328799DA /* MealPlannerTests.swift */,
 				A2A93B03479ABE9F5EB3F73D /* NutritionEngineTests.swift */,
 				3331617AFF01506FC39C3FE5 /* SubscriptionEntitlementTests.swift */,
 			);
@@ -610,12 +659,15 @@
 				3AF1859934009C7363660737 /* View+Appearance.swift in Sources */,
 				46CEDCDC3BAEA22A7A1726CF /* CoachingCalendar.swift in Sources */,
 				5CFEC1957542CA35954E77F4 /* UnitConversion.swift in Sources */,
+				8BAAA0CFFABD683A1840DD0A /* AdaptiveModelCard.swift in Sources */,
 				55533CFF2E783A65CFD1D6CA /* CoachChatView.swift in Sources */,
 				A40E32667C37C92DE34713EB /* CoachHomeView.swift in Sources */,
 				EB54EA555C8D39D26F26763B /* WeeklyCheckInFlowView.swift in Sources */,
 				AA0619A1AFD963816614D9BC /* CustomFoodEditorView.swift in Sources */,
 				D0A68E77F7688FA8F754CA3C /* FoodLogView.swift in Sources */,
 				2CE906C574F6EB8A8014F49C /* FoodSearchView.swift in Sources */,
+				F9E0EBD76DE7EF5295116766 /* BarcodeScannerView.swift in Sources */,
+				412E1D20B6F0C19A801EE8C4 /* FoodsView.swift in Sources */,
 				652F2FA79E5B9D2F04B360EA /* MealPlanView.swift in Sources */,
 				F85A26672042999F9EA696F8 /* OnboardingFlowView.swift in Sources */,
 				4357021EC0404DE03196E25A /* ProgressViewScreen.swift in Sources */,
@@ -632,11 +684,14 @@
 				591992E2B4BA38C1951F031D /* WeightModels.swift in Sources */,
 				F9639E32C46ADC82FD948D45 /* WorkoutModels.swift in Sources */,
 				CA3BAA19A00E2B4BEC89A65C /* CoachAIProvider.swift in Sources */,
+				8750D8F05FC6FCD5A504F8E6 /* AdaptiveModel.swift in Sources */,
 				0C250081FF1E0C1B5DC59244 /* CoachingDecisionEngine.swift in Sources */,
+				7E528359DF25B5BC978C8E38 /* BarcodeLookup.swift in Sources */,
 				1F8B83904F6A77D5F731E190 /* FoodCatalogProvider.swift in Sources */,
 				C0F0943A93FD84A1E0E7814B /* StepService.swift in Sources */,
 				DD6647AFD7618371703A0BD0 /* NotificationScheduler.swift in Sources */,
 				C375EC6E161D99855A842869 /* MealPlanSolver.swift in Sources */,
+				50D367660D4D931ED180FFEE /* MealPlanner.swift in Sources */,
 				EE41A8B5CEA16D227D32817D /* NutritionEngine.swift in Sources */,
 				D955C2124D05E5F17AC1EC65 /* AppDataStore.swift in Sources */,
 				808914D5267B436FDA0472B1 /* KeychainStore.swift in Sources */,
@@ -648,8 +703,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3FE8592DA34EE540BFE61D4E /* AdaptiveModelFixture.swift in Sources */,
+				148AB94EDEAC60DED72A5F19 /* AdaptiveModelTests.swift in Sources */,
+				6D46D2496E8A1571185467F7 /* BarcodeLookupTests.swift in Sources */,
 				84FD21FB21AFD2CFA206EEE1 /* CoachingDecisionEngineTests.swift in Sources */,
 				69418145DA66ADF117A4797E /* MealPlanSolverTests.swift in Sources */,
+				75DB5A7C45B04CCE574F0D8B /* MealPlannerFixture.swift in Sources */,
+				27E011E848B7597D3AA9B7D0 /* MealPlannerTests.swift in Sources */,
 				9BE164EDC62E055A1F72CD5D /* NutritionEngineTests.swift in Sources */,
 				D8798D2C2774C747B60B9947 /* SubscriptionEntitlementTests.swift in Sources */,
 			);
@@ -727,7 +787,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "My Coach";
 				INFOPLIST_KEY_CFBundleName = MyCoach;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access allows you to take weekly progress photos.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "My Coach uses the camera to scan food barcodes and to take your weekly progress photos.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Step data is used optionally to compare against your step target. Manual entry always works.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -759,7 +819,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "My Coach";
 				INFOPLIST_KEY_CFBundleName = MyCoach;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Camera access allows you to take weekly progress photos.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "My Coach uses the camera to scan food barcodes and to take your weekly progress photos.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Step data is used optionally to compare against your step target. Manual entry always works.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

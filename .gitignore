@@ -59,3 +59,8 @@ fastlane/test_output
 *~
 .vscode/
 .cursor/
+
+# Web / Android PWA build (web/)
+node_modules/
+web/dist/
+*.tsbuildinfo

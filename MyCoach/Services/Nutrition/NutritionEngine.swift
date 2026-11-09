@@ -64,15 +64,9 @@ struct NutritionEngine: Sendable {
         return clampCalories(raw, sex: input.sex)
     }
 
+    /// 1 g per pound of current bodyweight (≈ 2.2 g/kg), regardless of goal.
     func proteinGrams(weightKg: Double, goal: GoalPhase) -> Double {
-        let perKg: Double
-        switch goal {
-        case .cut: perKg = CoachingConfig.proteinGramsPerKgCut
-        case .gain: perKg = CoachingConfig.proteinGramsPerKgGain
-        case .maintenance: perKg = (CoachingConfig.proteinGramsPerKgCut + CoachingConfig.proteinGramsPerKgGain) / 2
-        }
-        let grams = weightKg * max(perKg, CoachingConfig.minimumProteinGramsPerKg)
-        return grams
+        weightKg * CoachingConfig.proteinGramsPerKg
     }
 
     func fatGrams(weightKg: Double, goal: GoalPhase) -> Double {

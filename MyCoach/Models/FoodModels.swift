@@ -216,7 +216,13 @@ struct MealItem: Codable, Equatable, Sendable, Identifiable {
     var quantityLabel: String {
         if let grams {
             let rounded = (grams * 10).rounded() / 10
-            return "\(rounded.formatted(.number.precision(.fractionLength(0...1)))) g \(food.measurementState.displayName.lowercased()) \(food.name)"
+            // State word only where weight changes with cooking: raw / dry / cooked.
+            let state: String
+            switch food.measurementState {
+            case .raw, .dry, .cooked: state = "\(food.measurementState.displayName.lowercased()) "
+            default: state = ""
+            }
+            return "\(rounded.formatted(.number.precision(.fractionLength(0...1)))) g \(state)\(food.name)"
         }
         if let servings {
             return "\(servings.formatted(.number.precision(.fractionLength(0...2)))) × \(food.servingDescription)"
@@ -231,19 +237,23 @@ struct Meal: Codable, Equatable, Sendable, Identifiable {
     var name: String
     var scheduledTimeMinutes: Int?
     var items: [MealItem]
+    /// Planner recipe this meal was built from (used to offer the next alternative on "Swap meal").
+    var recipeID: String?
 
     init(
         id: UUID = UUID(),
         slot: MealSlot,
         name: String? = nil,
         scheduledTimeMinutes: Int? = nil,
-        items: [MealItem] = []
+        items: [MealItem] = [],
+        recipeID: String? = nil
     ) {
         self.id = id
         self.slot = slot
         self.name = name ?? slot.displayName
         self.scheduledTimeMinutes = scheduledTimeMinutes
         self.items = items
+        self.recipeID = recipeID
     }
 
     var totalCalories: Double { items.reduce(0) { $0 + $1.calories } }

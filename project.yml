@@ -36,7 +36,7 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         INFOPLIST_KEY_CFBundleDisplayName: "My Coach"
         INFOPLIST_KEY_CFBundleName: MyCoach
-        INFOPLIST_KEY_NSCameraUsageDescription: "Camera access allows you to take weekly progress photos."
+        INFOPLIST_KEY_NSCameraUsageDescription: "My Coach uses the camera to scan food barcodes and to take your weekly progress photos."
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Step data is used optionally to compare against your step target. Manual entry always works."
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait

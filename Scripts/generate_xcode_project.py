@@ -153,7 +153,7 @@ def app_cfg(cfg_id: str, name: str) -> str:
 \t\t\t\tGENERATE_INFOPLIST_FILE = YES;
 \t\t\t\tINFOPLIST_KEY_CFBundleDisplayName = "My Coach";
 \t\t\t\tINFOPLIST_KEY_CFBundleName = MyCoach;
-\t\t\t\tINFOPLIST_KEY_NSCameraUsageDescription = "Camera access allows you to take weekly progress photos.";
+\t\t\t\tINFOPLIST_KEY_NSCameraUsageDescription = "My Coach uses the camera to scan food barcodes and to take your weekly progress photos.";
 \t\t\t\tINFOPLIST_KEY_NSHealthShareUsageDescription = "Step data is used optionally to compare against your step target. Manual entry always works.";
 \t\t\t\tINFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 \t\t\t\tINFOPLIST_KEY_UILaunchScreen_Generation = YES;

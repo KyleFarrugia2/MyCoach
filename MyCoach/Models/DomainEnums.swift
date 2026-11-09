@@ -316,6 +316,8 @@ enum TargetSource: String, Codable, Sendable {
     case engine
     case coachRecommendation
     case userOverride
+    /// Set by the personal adaptive model (`AdaptiveModel`).
+    case adaptiveModel
 }
 
 enum MealSlot: String, Codable, CaseIterable, Sendable, Identifiable {

@@ -61,17 +61,25 @@ struct LocalDeterministicCoachAI: CoachAIProvider {
     ) async throws -> CoachAIStructuredResponse {
         let lastUser = messages.last(where: { $0.role == .user })?.text
         guard let decision else {
+            let ready = context.model.map { $0.confidence != .low } ?? false
+            let headline = Self.modelHeadline(context)
+            let modelAdvice = Self.modelRecommendation(context)
+            let prefix = lastUser.map { "Regarding “\($0)”: " } ?? ""
             return CoachAIStructuredResponse(
-                summary: "Your current plan is active.",
-                recommendation: "Continue logging weight, food, and weekly check-ins so the engine can review progress.",
+                summary: ready ? headline : "Your current plan is active.",
+                recommendation: ready
+                    ? modelAdvice
+                    : "Continue logging weight, food, and weekly check-ins so the engine can review progress.",
                 reasoning: [
                     "Training target: \(context.trainingCalories) kcal.",
                     "Rest target: \(context.restCalories) kcal.",
                     "Protein: \(Int(context.protein.rounded())) g · Carbs: \(Int(context.carbs.rounded())) g · Fat: \(Int(context.fat.rounded())) g.",
                     "Step target: \(context.stepTarget)."
-                ],
-                userMessage: lastUser.map { "Regarding “\($0)”: stick to your engine targets while we gather more data." }
-                    ?? "Stick to your engine targets while we gather more data."
+                ] + Self.modelLines(context),
+                userMessage: ready
+                    ? "\(prefix)\(headline) \(modelAdvice)"
+                    : (lastUser.map { "Regarding “\($0)”: stick to your engine targets while we gather more data." }
+                        ?? "Stick to your engine targets while we gather more data.")
             )
         }
         let response = build(decision: decision, context: context, userPrompt: lastUser)
@@ -130,6 +138,7 @@ struct LocalDeterministicCoachAI: CoachAIProvider {
         if let rate = context.weeklyRateKg {
             lines.append(String(format: "Weekly average change (logged): %.2f kg.", rate))
         }
+        lines.append(contentsOf: Self.modelLines(context))
         if let refeed = decision.refeed {
             lines.append(
                 "Refeed day calories (engine): \(refeed.refeedTarget.calories) kcal vs normal \(refeed.normalTarget.calories) kcal."
@@ -194,7 +203,38 @@ struct LocalDeterministicCoachAI: CoachAIProvider {
         case .stepCapReached: return "Step target is already at the configured cap."
         case .userFeelingHungry: return "Hunger feedback is elevated."
         case .recoveryConcern: return "Recovery indicators warrant caution."
+        case .modelPrediction: return "Your personal metabolism model, trained on your own logs, drove this recommendation."
         }
+    }
+
+    // MARK: - Personal model facts (numbers come from the trained model, never invented here)
+
+    private static func signed(_ v: Double) -> String {
+        "\(v >= 0 ? "+" : "−")\(String(format: "%.2f", abs(v)))"
+    }
+
+    static func modelHeadline(_ c: CoachAIContext) -> String {
+        guard let m = c.model else { return "" }
+        return "Based on your own data, your maintenance is about \(Int(m.maintenanceKcal.rounded())) kcal/day and you're on track for \(signed(m.predictedKgPerWeek)) kg/week (goal \(signed(m.targetKgPerWeek)))."
+    }
+
+    static func modelRecommendation(_ c: CoachAIContext) -> String {
+        guard let m = c.model else { return "" }
+        if m.recommendedDeltaKcal == 0 {
+            return "Your current calories already match your goal rate — keep going."
+        }
+        return "Your personal model recommends \(m.recommendedDeltaKcal > 0 ? "adding" : "removing") \(abs(m.recommendedDeltaKcal)) kcal/day."
+    }
+
+    static func modelLines(_ c: CoachAIContext) -> [String] {
+        guard let m = c.model else { return [] }
+        if m.confidence == .low {
+            return ["Personal model: still learning (\(m.observations) training \(m.observations == 1 ? "week" : "weeks") so far)."]
+        }
+        return [
+            "Personal model (\(m.confidence.rawValue) confidence, \(m.observations) weeks): maintenance \(Int(m.maintenanceKcal.rounded())) ± \(Int(m.maintenanceSD.rounded())) kcal/day.",
+            "Predicted on current plan: \(signed(m.predictedKgPerWeek)) kg/week vs goal \(signed(m.targetKgPerWeek)) kg/week."
+        ]
     }
 
     /// If messaging somehow drifts, re-anchor calorie/macro/step figures to the engine decision.

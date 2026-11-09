@@ -18,9 +18,8 @@ enum CoachingConfig {
 
     // MARK: - Macro priorities (evidence-informed defaults)
     /// Protein g per kg body weight — cut / gain.
-    static let proteinGramsPerKgCut = 2.2
-    static let proteinGramsPerKgGain = 2.0
-    static let minimumProteinGramsPerKg = 1.6
+    /// 1 g protein per pound of current bodyweight (= 2.2046 g/kg), for every goal.
+    static let proteinGramsPerKg = 2.2046226218
 
     /// Fat g per kg body weight floors / defaults.
     static let minimumFatGramsPerKg = 0.6

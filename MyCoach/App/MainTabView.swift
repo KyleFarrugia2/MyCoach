@@ -19,6 +19,10 @@ struct MainTabView: View {
                 .tabItem { Label("Log", systemImage: "list.bullet.rectangle") }
                 .tag(MainTab.log)
 
+            FoodsView()
+                .tabItem { Label("Foods", systemImage: "basket.fill") }
+                .tag(MainTab.foods)
+
             WorkoutHomeView()
                 .tabItem { Label("Workout", systemImage: "figure.strengthtraining.traditional") }
                 .tag(MainTab.workout)

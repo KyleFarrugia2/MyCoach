@@ -4,6 +4,8 @@ iOS nutrition and physique coaching app: deterministic engines first, Coach AI s
 
 > **Blocked on this Mac until you accept the Xcode license.** See [`docs/SETUP.md`](docs/SETUP.md) — run `sudo xcodebuild -license accept` in Terminal, then ask the agent to compile and run tests.
 
+> **Windows / Android:** a full web port lives in [`web/`](web/README.md). Run `cd web && npm install && npm run dev` on Windows, then install it on Android phones as an app (PWA).
+
 ## Requirements
 
 - **Xcode 16+** (developed against Xcode 26 / iOS SDK shipping with it)
@@ -35,6 +37,10 @@ Optional XcodeGen alternative (if installed):
 ```bash
 xcodegen generate
 ```
+
+## Personal adaptive model
+
+On both iOS and Android, the coach trains a per-user model on the device from logged weight, food and steps. A Kalman filter smooths the weight trend, and an online Bayesian regression learns the user's maintenance, step burn and adaptation. The model predicts the weekly rate of change and automatically adjusts calorie targets toward the goal, capped at 300 kcal and at most once a week. See [`docs/ADAPTIVE_MODEL.md`](docs/ADAPTIVE_MODEL.md).
 
 ## Architecture
 
@@ -108,7 +114,6 @@ These are required for a production release but are **not** fully provisioned in
 - Hosted Privacy Policy and Terms (placeholders under `MyCoach/Resources/Legal/`)
 - Secure Coach AI HTTPS proxy and model credentials (see `docs/BACKEND_AI.md`)
 - Licensed commercial food nutrition data (if replacing the bundled catalog)
-- Final App Icon asset (1024×1024 slot is empty by design until you add art)
 - HealthKit capability / entitlements if you ship Health step import on device
 
 Completing scaffolding and checklists does **not** guarantee App Store approval.

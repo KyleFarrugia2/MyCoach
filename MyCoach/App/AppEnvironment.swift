@@ -33,11 +33,17 @@ final class AppEnvironment {
     var workoutRestEndsAt: Date?
     var pendingStagnationAlerts: [String] = []
 
+    // Adaptive model cache — recomputed when persisted data changes (see `save()`), not observed by views.
+    @ObservationIgnored var dataRevision = 0
+    @ObservationIgnored var adaptiveCacheRevision = -1
+    @ObservationIgnored var adaptiveCacheDay: Date?
+    @ObservationIgnored var adaptiveCachedModel: AdaptiveModelSnapshot?
+    @ObservationIgnored var isApplyingAdaptiveAdjustment = false
+
     // MARK: - Services
 
     private let nutritionEngine = NutritionEngine()
     private let decisionEngine = CoachingDecisionEngine()
-    private let mealGenerator = MealPlanGenerator()
     private let calendar = CoachingCalendar()
     private let persistenceURL: URL
     private let bundledCatalog = BundledFoodCatalog()
@@ -62,8 +68,8 @@ final class AppEnvironment {
             self.preferences = snapshot.preferences
             self.weightEntries = snapshot.weightEntries
             self.stepEntries = snapshot.stepEntries
-            self.diaries = Dictionary(uniqueKeysWithValues: snapshot.diaries.map { (calendarKey($0.localDate), $0) })
-            self.mealPlanDays = Dictionary(uniqueKeysWithValues: snapshot.mealPlanDays.map { (calendarKey($0.localDate), $0) })
+            self.diaries = Dictionary(uniqueKeysWithValues: snapshot.diaries.map { (Self.calendarKey($0.localDate), $0) })
+            self.mealPlanDays = Dictionary(uniqueKeysWithValues: snapshot.mealPlanDays.map { (Self.calendarKey($0.localDate), $0) })
             self.targets = snapshot.targets
             self.checkIns = snapshot.checkIns
             self.chatMessages = snapshot.chatMessages
@@ -124,6 +130,10 @@ final class AppEnvironment {
             guard let self else { return }
             self.bundledFoodCache = await self.bundledCatalog.search(query: "")
             self.subscription = await self.subscriptionProvider.refreshEntitlement()
+            // Rebuild plans saved by the old generator that fail validation, then re-train the adaptive model
+            // and catch up on any adjustment that became due while the app was closed.
+            self.revalidateStoredPlans()
+            self.runAdaptiveAutoAdjust()
         }
     }
 
@@ -141,11 +151,11 @@ final class AppEnvironment {
     }
 
     var todayMealPlan: MealPlanDay? {
-        mealPlanDays[calendarKey(today)]
+        mealPlanDays[Self.calendarKey(today)]
     }
 
     var todayDiary: DailyFoodDiary {
-        diaries[calendarKey(today)] ?? DailyFoodDiary(localDate: today, entries: [], markedComplete: false)
+        diaries[Self.calendarKey(today)] ?? DailyFoodDiary(localDate: today, entries: [], markedComplete: false)
     }
 
     var todayWeightEntry: WeightEntry? {
@@ -248,8 +258,11 @@ final class AppEnvironment {
         }
         profile.currentWeightKg = kg
         profile.updatedAt = Date()
+        // Protein follows bodyweight (1 g/lb); calories stay as set.
+        refreshTargetsForCurrentWeight()
         weightEntries.sort { $0.localDate < $1.localDate }
         save()
+        runAdaptiveAutoAdjust()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
@@ -265,18 +278,20 @@ final class AppEnvironment {
             stepEntries.append(StepEntry(localDate: day, steps: steps, source: source))
         }
         save()
+        runAdaptiveAutoAdjust()
     }
 
     // MARK: - Food diary
 
     func diary(for date: Date) -> DailyFoodDiary {
-        let key = calendarKey(date)
+        let key = Self.calendarKey(date)
         return diaries[key] ?? DailyFoodDiary(localDate: calendar.localDate(for: date), entries: [], markedComplete: false)
     }
 
     func upsertDiary(_ diary: DailyFoodDiary) {
-        diaries[calendarKey(diary.localDate)] = diary
+        diaries[Self.calendarKey(diary.localDate)] = diary
         save()
+        runAdaptiveAutoAdjust()
     }
 
     func logFood(
@@ -364,12 +379,24 @@ final class AppEnvironment {
     }
 
     func saveCustomFood(_ food: FoodItem) {
-        if let index = customFoods.firstIndex(where: { $0.id == food.id }) {
+        // One food per barcode: re-scanning a product replaces the earlier entry.
+        if let index = customFoods.firstIndex(where: { $0.id == food.id || (food.barcode != nil && $0.barcode == food.barcode) }) {
             customFoods[index] = food
+            customFoods.removeAll { $0.id != food.id && food.barcode != nil && $0.barcode == food.barcode }
         } else {
             customFoods.append(food)
         }
         save()
+    }
+
+    func deleteCustomFood(_ food: FoodItem) {
+        customFoods.removeAll { $0.id == food.id }
+        save()
+    }
+
+    /// A food the user already saved for this barcode, so re-scans work offline.
+    func customFood(barcode: String) -> FoodItem? {
+        customFoods.first { $0.barcode == barcode }
     }
 
     func searchFoods(query: String) async -> [FoodItem] {
@@ -395,109 +422,114 @@ final class AppEnvironment {
 
     // MARK: - Meal plan
 
+    /// Planner inputs for a given day (intra-workout only on training days).
+    func plannerContext(for date: Date) -> PlannerContext {
+        let training = profile.trainingSchedule.isTrainingDay(weekday(for: date))
+        return PlannerContext(
+            allergies: Array(profile.allergies).sorted { $0.rawValue < $1.rawValue },
+            dislikedFoods: profile.dislikedFoods,
+            preferredFoods: profile.preferredFoods,
+            trainingTime: profile.trainingTime,
+            intraWorkoutEnabled: profile.intraWorkoutEnabled && training,
+            weightKg: profile.currentWeightKg,
+            goal: profile.goalPhase
+        )
+    }
+
+    /// Same calories, macros re-derived for the *current* bodyweight: protein 1 g/lb, fat per kg, carbs fill
+    /// the rest (4/4/9). Keeps coach/model calorie adjustments intact.
+    func refreshTargetsForCurrentWeight(includesIntraWorkout: Bool? = nil) {
+        guard var pair = targets else { return }
+        let weight = profile.currentWeightKg
+        pair.training.macros = nutritionEngine.macros(forCalories: pair.training.calories, weightKg: weight, goal: profile.goalPhase)
+        if let includesIntraWorkout { pair.training.includesIntraWorkout = includesIntraWorkout }
+        var rest = nutritionEngine.restDayTarget(
+            fromTraining: pair.training,
+            weightKg: weight,
+            goal: profile.goalPhase,
+            sex: profile.biologicalSex
+        )
+        rest.id = pair.rest.id
+        rest.source = pair.rest.source
+        rest.stepTarget = pair.rest.stepTarget
+        pair.rest = rest
+        targets = pair
+    }
+
+    private func plannedDay(_ day: Date, targets: NutritionTargetPair) -> MealPlanDay {
+        let weekday = weekday(for: day)
+        let training = profile.trainingSchedule.isTrainingDay(weekday)
+        return MealPlanner.generateDay(
+            date: day,
+            weekday: weekday,
+            isTrainingDay: training,
+            target: targets.target(isTrainingDay: training),
+            context: plannerContext(for: day)
+        )
+    }
+
+    /// Plans saved by the old generator (no recipe ids) that fail validation — e.g. cooked weights or two
+    /// protein foods in one meal — are rebuilt with the current planner before they're shown again.
+    func revalidateStoredPlans() {
+        guard FeatureAccess.canGenerateMealPlan(subscription), targets != nil else { return }
+        let stale = mealPlanDays.filter { _, plan in
+            plan.meals.allSatisfy { $0.recipeID == nil } && !MealPlanner.validate(plan).ok
+        }
+        guard !stale.isEmpty else { return }
+        refreshTargetsForCurrentWeight()
+        guard let targets else { return }
+        for (key, plan) in stale {
+            mealPlanDays[key] = plannedDay(plan.localDate, targets: targets)
+        }
+        save()
+    }
+
     func generateMealPlan(forWeekContaining date: Date) {
         guard FeatureAccess.canGenerateMealPlan(subscription) else { return }
+        refreshTargetsForCurrentWeight()
         guard let targets else { return }
         isGeneratingMealPlan = true
         defer { isGeneratingMealPlan = false }
-
-        let preferred = preferredFoodItems()
         for day in calendar.datesInWeek(containing: date) {
-            let weekday = weekday(for: day)
-            let training = profile.trainingSchedule.isTrainingDay(weekday)
-            let target = targets.target(isTrainingDay: training)
-            let plan = mealGenerator.generateDay(
-                date: day,
-                weekday: weekday,
-                isTrainingDay: training,
-                target: target,
-                preferredFoods: preferred,
-                allergies: profile.allergies,
-                mealCount: CoachingConfig.requiredMealCount,
-                trainingTime: profile.trainingTime,
-                intraWorkoutEnabled: profile.intraWorkoutEnabled && training,
-                weightKg: profile.currentWeightKg,
-                goal: profile.goalPhase
-            )
-            mealPlanDays[calendarKey(day)] = plan
+            mealPlanDays[Self.calendarKey(day)] = plannedDay(day, targets: targets)
         }
         save()
     }
 
     func regenerateDay(_ date: Date) {
         guard FeatureAccess.canGenerateMealPlan(subscription) else { return }
+        refreshTargetsForCurrentWeight()
         guard let targets else { return }
         let day = calendar.localDate(for: date)
-        let weekday = weekday(for: day)
-        let training = profile.trainingSchedule.isTrainingDay(weekday)
-        let plan = mealGenerator.generateDay(
-            date: day,
-            weekday: weekday,
-            isTrainingDay: training,
-            target: targets.target(isTrainingDay: training),
-            preferredFoods: preferredFoodItems(),
-            allergies: profile.allergies,
-            mealCount: CoachingConfig.requiredMealCount,
-            trainingTime: profile.trainingTime,
-            intraWorkoutEnabled: profile.intraWorkoutEnabled && training,
-            weightKg: profile.currentWeightKg,
-            goal: profile.goalPhase
-        )
-        mealPlanDays[calendarKey(day)] = plan
+        mealPlanDays[Self.calendarKey(day)] = plannedDay(day, targets: targets)
         save()
     }
 
     func toggleLock(itemID: UUID, on date: Date) {
-        guard var plan = mealPlanDays[calendarKey(date)] else { return }
+        guard var plan = mealPlanDays[Self.calendarKey(date)] else { return }
         for m in plan.meals.indices {
             for i in plan.meals[m].items.indices where plan.meals[m].items[i].id == itemID {
                 plan.meals[m].items[i].isLocked.toggle()
             }
         }
-        mealPlanDays[calendarKey(date)] = plan
+        mealPlanDays[Self.calendarKey(date)] = plan
         save()
     }
 
-    func swapFood(itemID: UUID, with food: FoodItem, on date: Date) {
-        guard var plan = mealPlanDays[calendarKey(date)] else { return }
-        let solver = MealPlanSolver()
-        for m in plan.meals.indices {
-            if let idx = plan.meals[m].items.firstIndex(where: { $0.id == itemID }) {
-                let old = plan.meals[m].items[idx]
-                let targetCalories = old.calories
-                var replacement = MealItem(
-                    food: food,
-                    grams: old.grams,
-                    servings: old.servings,
-                    isLocked: old.isLocked,
-                    calories: old.calories,
-                    macros: old.macros
-                )
-                let siblings = plan.meals[m].items.filter { $0.id != itemID && !$0.isLocked }
-                let result = solver.rescaleItem(
-                    replacement,
-                    targetCalories: targetCalories,
-                    siblingFlexibleItems: siblings,
-                    mealMacroTarget: nil,
-                    bannedAllergies: profile.allergies
-                )
-                replacement = result.item
-                plan.meals[m].items[idx] = replacement
-                for sib in result.siblings {
-                    if let sIdx = plan.meals[m].items.firstIndex(where: { $0.id == sib.id }) {
-                        plan.meals[m].items[sIdx] = sib
-                    }
-                }
-                plan.solverMessage = result.message
-            }
-        }
-        // Re-solve day around locks
-        let solved = solver.solve(
-            MealPlanSolver.Request(target: plan.target, meals: plan.meals, bannedAllergies: profile.allergies)
-        )
-        plan.meals = solved.meals
-        if let message = solved.message { plan.solverMessage = message }
-        mealPlanDays[calendarKey(date)] = plan
+    /// Swap one ingredient; portions and daily totals are re-fitted and the day re-validated.
+    @discardableResult
+    func swapFood(itemID: UUID, with food: FoodItem, on date: Date) -> String? {
+        guard let plan = mealPlanDays[Self.calendarKey(date)] else { return nil }
+        let result = MealPlanner.swapItem(plan, itemID: itemID, with: food)
+        mealPlanDays[Self.calendarKey(date)] = result.plan
+        save()
+        return result.message
+    }
+
+    /// Replace a whole meal with the next suitable recipe; the day is re-fitted and re-validated.
+    func swapMeal(mealID: UUID, on date: Date) {
+        guard let plan = mealPlanDays[Self.calendarKey(date)] else { return }
+        mealPlanDays[Self.calendarKey(date)] = MealPlanner.swapMeal(plan, mealID: mealID, context: plannerContext(for: date))
         save()
     }
 
@@ -528,14 +560,16 @@ final class AppEnvironment {
     func setIntraWorkoutEnabled(_ enabled: Bool) {
         profile.intraWorkoutEnabled = enabled
         profile.updatedAt = Date()
-        rebuildTargetsFromProfile()
+        // Keep any coach/model calorie adjustments — only the intra flag and macro split refresh.
+        refreshTargetsForCurrentWeight(includesIntraWorkout: enabled)
+        save()
         regenerateDay(today)
     }
 
     // MARK: - Coaching
 
     func submitWeeklyCheckIn(_ draft: WeeklyCheckIn) -> CoachDecision {
-        let decision = decisionEngine.evaluate(
+        let ruleDecision = decisionEngine.evaluate(
             CoachingDecisionEngine.Input(
                 goal: profile.goalPhase,
                 previousWeek: previousWeek,
@@ -555,6 +589,8 @@ final class AppEnvironment {
                 recentRefeed: checkIns.contains { $0.decision?.refeed != nil && $0.userApprovedAdjustment }
             )
         )
+        // The rules decide whether calories may change; a confident personal model decides by how much.
+        let decision = blendWithAdaptiveModel(ruleDecision)
         var completed = draft
         completed.decision = decision
         completed.previousAverageKg = previousWeek.averageKg
@@ -699,6 +735,7 @@ final class AppEnvironment {
             ? "Coach AI active — weekly check-ins and meal plans unlocked."
             : coachStatusMessage
         save()
+        runAdaptiveAutoAdjust()
     }
 
     func restoreSubscription() async {
@@ -735,6 +772,7 @@ final class AppEnvironment {
                 }
                 coachStatusMessage = "Coach AI trial active — weekly check-ins and meal plans unlocked."
                 save()
+                runAdaptiveAutoAdjust()
             }
         }
     }
@@ -759,7 +797,8 @@ final class AppEnvironment {
             adherence: checkIns.first?.adherencePercent,
             performance: checkIns.first?.performance,
             appearance: checkIns.first?.appearance,
-            targetSource: targets?.training.source ?? .engine
+            targetSource: targets?.training.source ?? .engine,
+            model: adaptiveAIContext
         )
     }
 
@@ -866,9 +905,9 @@ final class AppEnvironment {
     }
 
     func sessions(on day: Date) -> [WorkoutSession] {
-        let key = calendarKey(day)
+        let key = Self.calendarKey(day)
         return workoutSessions
-            .filter { calendarKey($0.localDate) == key }
+            .filter { Self.calendarKey($0.localDate) == key }
             .sorted { $0.startedAt > $1.startedAt }
     }
 
@@ -965,13 +1004,6 @@ final class AppEnvironment {
 
     // MARK: - Private
 
-    private func preferredFoodItems() -> [FoodItem] {
-        let names = Set(profile.preferredFoods.map { $0.lowercased() })
-        let matched = catalogFoods.filter { names.contains($0.name.lowercased()) }
-        if matched.count >= 4 { return matched }
-        return catalogFoods
-    }
-
     private func localCoachReply(for prompt: String) -> String {
         let lower = prompt.lowercased()
         if lower.contains("refeed") {
@@ -1027,6 +1059,7 @@ final class AppEnvironment {
     }
 
     func save() {
+        dataRevision &+= 1
         let snapshot = makeSnapshot()
         let url = persistenceURL.appendingPathComponent("state.json")
         do {
@@ -1081,12 +1114,222 @@ final class AppEnvironment {
     }
 }
 
+// MARK: - Personal adaptive model (on-device ML)
+
+extension AppEnvironment {
+    private static let maxModelHistoryDays = 365
+    private static let minLoggedDayKcal = 600.0
+    /// A day's food log counts as training data only if it looks complete (marked done, or ≥ 50% of target).
+    private static let completeDayFraction = 0.5
+
+    private func priorMaintenance(weightKg: Double) -> Double {
+        let input = NutritionEngine.ProfileInput(
+            weightKg: weightKg,
+            heightCm: profile.heightCm,
+            ageYears: profile.ageYears ?? 25,
+            sex: profile.biologicalSex,
+            goal: profile.goalPhase,
+            activityBand: profile.activityBand,
+            trainingDaysPerWeek: profile.trainingSchedule.trainingDaysPerWeek,
+            stepTarget: profile.stepTarget,
+            intraWorkoutEnabled: profile.intraWorkoutEnabled
+        )
+        return Double(nutritionEngine.estimatedMaintenanceCalories(for: input))
+    }
+
+    private var planAverageIntake: Double? {
+        guard let targets else { return nil }
+        let n = Double(profile.trainingSchedule.trainingDaysPerWeek)
+        return (n * Double(targets.training.calories) + (7 - n) * Double(targets.rest.calories)) / 7
+    }
+
+    /// Turns the user's logs into the model's day-indexed training series (oldest → today).
+    func adaptiveInput(asOf: Date = Date()) -> AdaptiveFitInput? {
+        let end = calendar.localDate(for: asOf)
+        let official = weightEntries
+            .filter { $0.isOfficialMorningCheckIn && calendar.localDate(for: $0.localDate) <= end }
+            .sorted { $0.localDate < $1.localDate }
+        guard let firstEntry = official.first, let lastEntry = official.last else { return nil }
+        let earliest = calendar.calendar.date(byAdding: .day, value: -(Self.maxModelHistoryDays - 1), to: end) ?? end
+        let start = max(calendar.localDate(for: firstEntry.localDate), earliest)
+
+        var weights: [Date: Double] = [:]
+        for entry in official { weights[calendar.localDate(for: entry.localDate)] = entry.weightKg }
+        var steps: [Date: Double] = [:]
+        for entry in stepEntries { steps[calendar.localDate(for: entry.localDate)] = Double(entry.steps) }
+
+        var days: [AdaptiveDay] = []
+        var day = start
+        while day <= end {
+            var intake: Double?
+            // Today only counts once marked complete — a half-logged day would look like a deficit.
+            if let diary = diaries[Self.calendarKey(day)], !diary.entries.isEmpty, day < end || diary.markedComplete {
+                let total = diary.totalCalories
+                let training = profile.trainingSchedule.isTrainingDay(weekday(for: day))
+                let target = Double(targets?.target(isTrainingDay: training).calories ?? 2000)
+                if total >= Self.minLoggedDayKcal, diary.markedComplete || total >= Self.completeDayFraction * target {
+                    intake = total
+                }
+            }
+            days.append(AdaptiveDay(weightKg: weights[day], intakeKcal: intake, steps: steps[day]))
+            guard let next = calendar.calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+
+        let prior = priorMaintenance(weightKg: firstEntry.weightKg)
+        return AdaptiveFitInput(
+            days: days,
+            priorMaintenanceKcal: prior,
+            bodyWeightKg: lastEntry.weightKg,
+            fallbackSteps: Double(profile.stepTarget),
+            fallbackIntakeKcal: planAverageIntake ?? prior
+        )
+    }
+
+    /// The trained personal model. Re-trains whenever persisted data changes or the day rolls over.
+    var adaptiveModel: AdaptiveModelSnapshot? {
+        let day = today
+        if adaptiveCacheRevision == dataRevision, adaptiveCacheDay == day {
+            return adaptiveCachedModel
+        }
+        let model = adaptiveInput().map { AdaptiveModel.fit($0) }
+        adaptiveCacheRevision = dataRevision
+        adaptiveCacheDay = day
+        adaptiveCachedModel = model
+        return model
+    }
+
+    var adaptiveRecommendation: AdaptiveRecommendation? {
+        guard let model = adaptiveModel, let targets else { return nil }
+        return AdaptiveModel.recommend(
+            model,
+            plan: AdaptivePlanCalories(
+                trainingKcal: Double(targets.training.calories),
+                restKcal: Double(targets.rest.calories),
+                trainingDaysPerWeek: profile.trainingSchedule.trainingDaysPerWeek
+            ),
+            goal: profile.goalPhase,
+            desiredWeightKg: profile.desiredWeightKg,
+            steps: model.currentSteps
+        )
+    }
+
+    /// Earliest time another automatic change may happen (one change per week, from any source).
+    var nextAdaptiveAdjustmentDate: Date? {
+        planAdjustments.first.map { $0.date.addingTimeInterval(AdaptiveConfig.minDaysBetweenAutoAdjustments * 86_400) }
+    }
+
+    var adaptiveAIContext: CoachAIModelContext? {
+        guard let model = adaptiveModel, let rec = adaptiveRecommendation else { return nil }
+        return CoachAIModelContext(
+            maintenanceKcal: model.maintenanceKcal,
+            maintenanceSD: model.maintenanceSD,
+            confidence: model.confidence,
+            observations: model.observations,
+            predictedKgPerWeek: rec.predictedCurrent.meanKgPerWeek,
+            targetKgPerWeek: rec.targetKgPerWeek,
+            recommendedDeltaKcal: rec.deltaKcal
+        )
+    }
+
+    /// Apply the model's recommendation. `auto` = triggered by new data: respects the auto-adjust setting,
+    /// the subscription, model confidence, and the one-change-per-week limit.
+    @discardableResult
+    func applyAdaptiveRecommendation(auto: Bool) -> Bool {
+        guard !isApplyingAdaptiveAdjustment else { return false }
+        guard let rec = adaptiveRecommendation, rec.shouldAdjust, hasCoachAccess, let old = targets else { return false }
+        if auto {
+            guard preferences.adaptiveAutoAdjust else { return false }
+            if let next = nextAdaptiveAdjustmentDate, next > Date() { return false }
+        }
+        isApplyingAdaptiveAdjustment = true
+        defer { isApplyingAdaptiveAdjustment = false }
+
+        var next = nutritionEngine.applyCalorieAdjustment(
+            currentTraining: old.training,
+            deltaCalories: rec.deltaKcal,
+            weightKg: profile.currentWeightKg,
+            goal: profile.goalPhase,
+            sex: profile.biologicalSex
+        )
+        guard next.training.calories != old.training.calories else { return false } // at a safety floor
+        next.training.source = .adaptiveModel
+        next.rest.source = .adaptiveModel
+
+        planAdjustments.insert(
+            PlanAdjustment(
+                oldCalories: old.training.calories,
+                newCalories: next.training.calories,
+                oldMacros: old.training.macros,
+                newMacros: next.training.macros,
+                oldSteps: old.training.stepTarget,
+                newSteps: next.training.stepTarget,
+                reason: rec.summary,
+                source: .adaptiveModel,
+                userApproved: !auto
+            ),
+            at: 0
+        )
+        targets = next
+        generateMealPlan(forWeekContaining: today)
+        coachStatusMessage = "\(auto ? "Auto-adjusted" : "Adjusted") by your personal model: \(old.training.calories) → \(next.training.calories) kcal on training days."
+        chatMessages.append(
+            CoachChatMessage(role: .coach, text: (auto ? "I updated your plan automatically. " : "") + rec.summary)
+        )
+        save()
+        return true
+    }
+
+    func runAdaptiveAutoAdjust() {
+        applyAdaptiveRecommendation(auto: true)
+    }
+
+    /// The rule engine keeps its safety gates (weigh-ins, adherence, extreme swings, recovery). When it would
+    /// make a standard fixed-size calorie move and the model is confident, the model decides the amount.
+    func blendWithAdaptiveModel(_ decision: CoachDecision) -> CoachDecision {
+        guard let rec = adaptiveRecommendation, rec.confidence != .low, let training = targets?.training else {
+            return decision
+        }
+        switch decision.action {
+        case .maintain, .increaseCalories, .decreaseCalories:
+            break
+        default:
+            return decision
+        }
+        var blended = decision
+        blended.reasons = decision.reasons.filter { $0 != .rateOnTarget && $0 != .rateTooSlow } + [.modelPrediction]
+        blended.summary = rec.summary
+        blended.confidence = rec.confidence == .high ? .high : .medium
+        guard rec.deltaKcal != 0 else {
+            blended.action = .maintain
+            return blended
+        }
+        let pair = nutritionEngine.applyCalorieAdjustment(
+            currentTraining: training,
+            deltaCalories: rec.deltaKcal,
+            weightKg: profile.currentWeightKg,
+            goal: profile.goalPhase,
+            sex: profile.biologicalSex
+        )
+        blended.action = rec.deltaKcal > 0 ? .increaseCalories(rec.deltaKcal) : .decreaseCalories(-rec.deltaKcal)
+        blended.secondaryActions = decision.secondaryActions.filter {
+            if case .suggestRefeed = $0 { return true }
+            return false
+        }
+        blended.suggestedTrainingCalories = pair.training.calories
+        blended.suggestedRestCalories = pair.rest.calories
+        blended.suggestedMacros = pair.training.macros
+        return blended
+    }
+}
+
 // MARK: - Tabs
 
 enum MainTab: Hashable {
     case today
     case mealPlan
     case log
+    case foods
     case workout
     case progress
     case coach

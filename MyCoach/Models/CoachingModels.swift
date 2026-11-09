@@ -37,6 +37,8 @@ enum CoachReasonCode: String, Codable, Sendable {
     case stepCapReached
     case userFeelingHungry
     case recoveryConcern
+    /// The personal adaptive model chose the calorie change.
+    case modelPrediction
 }
 
 struct CoachDecision: Codable, Equatable, Sendable, Identifiable {
@@ -162,6 +164,19 @@ struct CoachAIContext: Codable, Equatable, Sendable {
     var performance: TrainingPerformance?
     var appearance: AppearanceFeedback?
     var targetSource: TargetSource
+    /// Personal adaptive model summary, when one has been trained.
+    var model: CoachAIModelContext? = nil
+}
+
+/// What the on-device adaptive model has learned — passed to the coach so it can explain (never invent) numbers.
+struct CoachAIModelContext: Codable, Equatable, Sendable {
+    var maintenanceKcal: Double
+    var maintenanceSD: Double
+    var confidence: AdaptiveModelConfidence
+    var observations: Int
+    var predictedKgPerWeek: Double
+    var targetKgPerWeek: Double
+    var recommendedDeltaKcal: Int
 }
 
 struct CoachAIStructuredResponse: Codable, Equatable, Sendable {

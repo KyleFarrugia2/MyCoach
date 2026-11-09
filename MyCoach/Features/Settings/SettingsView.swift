@@ -140,6 +140,21 @@ struct SettingsView: View {
                 get: { env.profile.intraWorkoutEnabled },
                 set: { env.setIntraWorkoutEnabled($0) }
             ))
+            Toggle(isOn: Binding(
+                get: { env.preferences.adaptiveAutoAdjust },
+                set: { value in
+                    env.preferences.adaptiveAutoAdjust = value
+                    env.save()
+                    env.runAdaptiveAutoAdjust()
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Auto-adjust calories from my model")
+                    Text("Your personal metabolism model updates targets at most once a week (Coach AI).")
+                        .font(MCTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

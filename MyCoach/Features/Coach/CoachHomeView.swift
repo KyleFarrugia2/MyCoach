@@ -26,6 +26,7 @@ struct CoachHomeView: View {
             ScrollView {
                 VStack(spacing: MCTheme.Spacing.md) {
                     statusCard
+                    AdaptiveModelCard(showPaywall: $showPaywall)
                     promptsSection
                     checkInCTA
                     recentMessages

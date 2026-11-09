@@ -80,6 +80,14 @@ struct UserPreferences: Codable, Equatable, Sendable {
     var customMealNames: [String: String] = [:]
     var notifications: NotificationSettings = NotificationSettings()
     var showEstimatedDirection: Bool = true
+    /// Optional so snapshots saved before this setting existed still decode. Use `adaptiveAutoAdjust`.
+    var adaptiveAutoAdjustSetting: Bool?
+
+    /// Let the personal adaptive model change calorie targets automatically (at most weekly). Default on.
+    var adaptiveAutoAdjust: Bool {
+        get { adaptiveAutoAdjustSetting ?? true }
+        set { adaptiveAutoAdjustSetting = newValue }
+    }
 
     func mealName(for slot: MealSlot) -> String {
         customMealNames[slot.rawValue] ?? slot.displayName

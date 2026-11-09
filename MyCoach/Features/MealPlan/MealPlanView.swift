@@ -170,7 +170,10 @@ struct MealPlanView: View {
                     },
                     onLogMeal: {
                         env.logPlannedMeal(meal, on: selectedDate)
-                    }
+                    },
+                    onSwapMeal: env.hasCoachAccess ? {
+                        env.swapMeal(mealID: meal.id, on: selectedDate)
+                    } : nil
                 )
                 .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
             }
@@ -234,43 +237,35 @@ struct MealPlanView: View {
     }
 }
 
+/// Same-role, raw/dry, allergy-safe replacements; portions and day totals are re-fitted after the swap.
 private struct FoodSwapPicker: View {
     @Environment(AppEnvironment.self) private var env
     let item: MealItem
     let onSelect: (FoodItem) -> Void
-    @State private var query = ""
-    @State private var results: [FoodItem] = []
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List {
-                ForEach(filtered) { food in
-                    Button {
-                        onSelect(food)
-                    } label: {
-                        MCFoodRow(food: food, showsChevron: true)
+                Section {
+                    ForEach(MealPlanner.swapOptions(for: item, customFoods: env.customFoods, allergies: env.profile.allergies)) { food in
+                        Button {
+                            onSelect(food)
+                        } label: {
+                            MCFoodRow(food: food, showsChevron: true)
+                        }
                     }
+                } footer: {
+                    Text("Same kind of food, weighed raw or dry. Portions and the day's totals are recalculated after the swap. Add your own foods in the Foods tab to see them here.")
                 }
             }
-            .searchable(text: $query, prompt: "Swap \(item.food.name)")
-            .navigationTitle("Swap Food")
+            .navigationTitle("Swap \(item.food.name)")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .task(id: query) {
-                try? await Task.sleep(nanoseconds: 250_000_000)
-                results = await env.searchFoods(query: query)
-            }
-        }
-    }
-
-    private var filtered: [FoodItem] {
-        results.filter { food in
-            let banned = env.profile.allergies.filter { $0 != .none }
-            return food.allergenTags.isDisjoint(with: banned)
         }
     }
 }

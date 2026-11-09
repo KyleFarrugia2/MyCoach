@@ -219,7 +219,7 @@ struct PaywallView: View {
         """
         Privacy Policy placeholder for \(AppIdentity.displayName).
 
-        We collect information you enter (profile, weights, food logs, check-ins) to provide coaching. Progress photos stay on-device by default and are not uploaded to AI services unless you explicitly opt into a future architecture that says otherwise.
+        We collect information you enter (profile, weights, food logs, check-ins) to provide coaching. Progress photos stay on-device by default and are not uploaded to AI services unless you explicitly opt into a future architecture that says otherwise. When you scan a barcode, only the barcode number is sent to Open Food Facts to look up the product.
 
         Health/fitness data is not used for advertising. Replace developer contact before release:
         \(AppIdentity.supportContactPlaceholder)

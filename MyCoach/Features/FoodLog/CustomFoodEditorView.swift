@@ -3,7 +3,13 @@ import SwiftUI
 struct CustomFoodEditorView: View {
     @Environment(\.dismiss) private var dismiss
 
+    /// Food being edited (keeps its id).
     var existing: FoodItem? = nil
+    /// Starting values for a *new* food, e.g. a scanned product — saved with its id and barcode.
+    var prefill: FoodItem? = nil
+    /// Shown above the form (e.g. data source or "not found" guidance).
+    var notice: String? = nil
+    var title: String? = nil
     var onSave: (FoodItem) -> Void
 
     @State private var name = ""
@@ -16,10 +22,26 @@ struct CustomFoodEditorView: View {
     @State private var fat = ""
     @State private var fibre = ""
     @State private var measurementState: MeasurementState = .prepared
+    @State private var loaded = false
+
+    private var base: FoodItem? { existing ?? prefill }
 
     var body: some View {
         NavigationStack {
             Form {
+                if notice != nil || base?.barcode != nil {
+                    Section {
+                        if let notice {
+                            Label(notice, systemImage: "info.circle")
+                                .font(MCTheme.Typography.subheadline)
+                        }
+                        if let barcode = base?.barcode {
+                            Label("Barcode \(barcode)", systemImage: "barcode")
+                                .font(MCTheme.Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 Section("Identity") {
                     TextField("Food name", text: $name)
                     TextField("Brand (optional)", text: $brand)
@@ -32,6 +54,7 @@ struct CustomFoodEditorView: View {
                     TextField("Serving grams", text: $servingGrams)
                         .keyboardType(.decimalPad)
                 }
+
                 Section("Nutrition (per serving)") {
                     TextField("Calories", text: $calories).keyboardType(.decimalPad)
                     TextField("Protein (g)", text: $protein).keyboardType(.decimalPad)
@@ -39,13 +62,14 @@ struct CustomFoodEditorView: View {
                     TextField("Fat (g)", text: $fat).keyboardType(.decimalPad)
                     TextField("Fibre (g, optional)", text: $fibre).keyboardType(.decimalPad)
                 }
+
                 Section {
                     Text("Saved as your custom food. Meal plan calculations will use these values.")
                         .font(MCTheme.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle(existing == nil ? "Create Food" : "Edit Nutrition")
+            .navigationTitle(title ?? (existing == nil ? "Create Food" : "Edit Nutrition"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -55,44 +79,54 @@ struct CustomFoodEditorView: View {
                         .disabled(!canSave)
                 }
             }
-            .onAppear {
-                if let existing {
-                    name = existing.name
-                    brand = existing.brand ?? ""
-                    servingDescription = existing.servingDescription
-                    servingGrams = existing.servingGrams.map { String(format: "%.0f", $0) } ?? ""
-                    calories = existing.calories.map { String(format: "%.0f", $0) } ?? ""
-                    protein = existing.proteinGrams.map { String(format: "%.1f", $0) } ?? ""
-                    carbs = existing.carbohydrateGrams.map { String(format: "%.1f", $0) } ?? ""
-                    fat = existing.fatGrams.map { String(format: "%.1f", $0) } ?? ""
-                    fibre = existing.fibreGrams.map { String(format: "%.1f", $0) } ?? ""
-                    measurementState = existing.measurementState
-                }
-            }
+            .onAppear(perform: load)
         }
+    }
+
+    private static func parse(_ text: String) -> Double? {
+        Double(text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: "."))
+    }
+
+    private func load() {
+        guard !loaded else { return }
+        loaded = true
+        guard let base else { return }
+        name = base.name
+        brand = base.brand ?? ""
+        servingDescription = base.servingDescription
+        servingGrams = base.servingGrams.map { String(format: "%.0f", $0) } ?? ""
+        calories = base.calories.map { String(format: "%.0f", $0) } ?? ""
+        protein = base.proteinGrams.map { String(format: "%.1f", $0) } ?? ""
+        carbs = base.carbohydrateGrams.map { String(format: "%.1f", $0) } ?? ""
+        fat = base.fatGrams.map { String(format: "%.1f", $0) } ?? ""
+        fibre = base.fibreGrams.map { String(format: "%.1f", $0) } ?? ""
+        measurementState = base.measurementState
     }
 
     private var canSave: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
-            && Double(calories) != nil
+            && Self.parse(calories) != nil
     }
 
     private func save() {
         let food = FoodItem(
-            id: existing?.id ?? UUID(),
+            id: base?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
             brand: brand.isEmpty ? nil : brand,
-            source: .customUser,
+            source: base?.barcode != nil ? .barcode : .customUser,
             servingDescription: servingDescription,
-            servingGrams: Double(servingGrams),
-            calories: Double(calories),
-            proteinGrams: Double(protein),
-            carbohydrateGrams: Double(carbs),
-            fatGrams: Double(fat),
-            fibreGrams: Double(fibre),
+            servingGrams: Self.parse(servingGrams),
+            calories: Self.parse(calories),
+            proteinGrams: Self.parse(protein) ?? 0,
+            carbohydrateGrams: Self.parse(carbs) ?? 0,
+            fatGrams: Self.parse(fat) ?? 0,
+            fibreGrams: Self.parse(fibre),
             measurementState: measurementState,
+            barcode: base?.barcode,
             isCustom: true,
-            isVerified: false
+            isVerified: false,
+            allergenTags: base?.allergenTags ?? [],
+            isFavorite: base?.isFavorite ?? false
         )
         onSave(food)
         dismiss()

@@ -2,11 +2,11 @@
 
 Add these keys to the app target `Info.plist` (or the target’s Info tab in Xcode). Strings are specific to the features that use each API.
 
-## Camera — progress photos
+## Camera — barcode scanning and progress photos
 
 ```xml
 <key>NSCameraUsageDescription</key>
-<string>My Coach uses the camera so you can take weekly front, side, and back progress photos to track physique changes.</string>
+<string>My Coach uses the camera to scan food barcodes and to take your weekly front, side, and back progress photos.</string>
 ```
 
 ## HealthKit — optional step read
