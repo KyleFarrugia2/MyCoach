@@ -32,7 +32,7 @@ final class NutritionEngineTests: XCTestCase {
         XCTAssertEqual(average!, 79.74285714285714, accuracy: 1e-10)
     }
 
-    func testWeeklyChangeWeek1ToWeek2() {
+    func testWeeklyChangeWeek1ToWeek2() throws {
         let week1Start = date(year: 2026, month: 8, day: 3)
         let week2Start = date(year: 2026, month: 8, day: 10)
 
@@ -54,7 +54,7 @@ final class NutritionEngineTests: XCTestCase {
         )
 
         let rate = WeightAnalytics.rateOfChange(previous: previous, current: current)
-        XCTAssertEqual(rate?.absoluteChangeKg, -0.8)
+        XCTAssertEqual(try XCTUnwrap(rate?.absoluteChangeKg), -0.8, accuracy: 1e-9) // 79.2 − 80.0 isn't exact in binary
         XCTAssertEqual(rate?.previousAverageKg, 80.0)
         XCTAssertEqual(rate?.currentAverageKg, 79.2)
     }

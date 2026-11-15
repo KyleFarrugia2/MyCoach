@@ -24,8 +24,10 @@ struct SettingsView: View {
         @Bindable var env = env
         List {
             profileSection
+            scheduleSection
             coachingSection
             nutritionSection
+            soundSection
             appearanceSection
             notificationsSection
             subscriptionSection
@@ -117,18 +119,64 @@ struct SettingsView: View {
         }
     }
 
+    private var scheduleSection: some View {
+        Section {
+            Picker("Days per week", selection: Binding(
+                get: { env.profile.trainingSchedule.trainingDaysPerWeek },
+                set: { count in
+                    if let days = DayPlanEngine.presets[count] { env.setTrainingDays(Set(days)) }
+                }
+            )) {
+                ForEach(2...6, id: \.self) { Text("\($0)×").tag($0) }
+            }
+            .pickerStyle(.segmented)
+            ForEach(Weekday.allCases) { day in
+                Toggle(day.fullLabel, isOn: Binding(
+                    get: { env.profile.trainingSchedule.trainingDays.contains(day) },
+                    set: { on in
+                        var days = env.profile.trainingSchedule.trainingDays
+                        if on { days.insert(day) } else { days.remove(day) }
+                        if !days.isEmpty { env.setTrainingDays(days) }
+                    }
+                ))
+            }
+        } header: {
+            Text("Training Schedule")
+        } footer: {
+            Text("Choose how often and on which days you train. Your coach plans training, rest days and meals around them — and you can take an emergency rest day from Today whenever you need it.")
+        }
+    }
+
+    private var soundSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { env.preferences.calmingMusic },
+                set: { value in
+                    env.preferences.calmingMusic = value
+                    env.save()
+                    env.syncMusic()
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Calming background music")
+                    Text("Soft ambient music while you use the app. It switches off automatically when a workout starts.")
+                        .font(MCTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Sound")
+        }
+    }
+
     private var coachingSection: some View {
         Section("Coaching") {
             LabeledContent("Phase", value: env.profile.goalPhase.displayName)
-            LabeledContent("Training days", value: "\(env.profile.trainingSchedule.trainingDaysPerWeek) / week")
             Stepper(
                 "Step target: \(env.profile.stepTarget)",
                 value: Binding(
                     get: { env.profile.stepTarget },
-                    set: { value in
-                        env.updateProfile { $0.stepTarget = min(value, CoachingConfig.maxStepTarget) }
-                        env.rebuildTargetsFromProfile()
-                    }
+                    set: { env.setStepTarget($0) }
                 ),
                 in: 1_000...CoachingConfig.maxStepTarget,
                 step: CoachingConfig.defaultStepIncrement
@@ -270,6 +318,12 @@ struct SettingsView: View {
         Section("About") {
             LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
             Button("Terms of Use") { showTerms = true }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Quote sources")
+                Text("inspirational-quotes by Vinit Shahdeo (MIT) · daily-motivation by Ata Gowani (Apache-2.0) · english_quotes by Abirate on Hugging Face (CC BY 4.0). Music: original composition for My Coach.")
+                    .font(MCTheme.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
             LabeledContent("Support", value: AppIdentity.supportContactPlaceholder)
         }
     }

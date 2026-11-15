@@ -15,7 +15,7 @@ struct FoodLogView: View {
     @State private var quickFat = ""
 
     private var isSelectedDateTraining: Bool {
-        env.profile.trainingSchedule.isTrainingDay(env.weekday(for: selectedDate))
+        env.isTrainingDay(on: selectedDate)
     }
 
     private var mealSlots: [MealSlot] {
@@ -28,7 +28,7 @@ struct FoodLogView: View {
 
     private var target: DailyNutritionTarget? {
         guard let targets = env.targets else { return nil }
-        let training = env.profile.trainingSchedule.isTrainingDay(env.weekday(for: selectedDate))
+        let training = env.isTrainingDay(on: selectedDate)
         return targets.target(isTrainingDay: training)
     }
 

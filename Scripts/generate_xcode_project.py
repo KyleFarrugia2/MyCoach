@@ -276,6 +276,8 @@ def main() -> None:
         ("MyCoach/Resources/Assets.xcassets", "folder.assetcatalog", "Assets.xcassets"),
         ("MyCoach/Resources/PrivacyInfo.xcprivacy", "text.xml", "PrivacyInfo.xcprivacy"),
         ("MyCoach/Resources/StoreKit/MyCoach.storekit", "text", "MyCoach.storekit"),
+        ("MyCoach/Resources/Data/quotes.json", "text.json", "quotes.json"),
+        ("MyCoach/Resources/Audio/calm.m4a", "file", "calm.m4a"),
     ]
     for path, lkt, name in res_specs:
         fid = uid(f"file:{path}")
@@ -307,6 +309,12 @@ def main() -> None:
         ],
         "MyCoach/Resources/StoreKit": [
             ("MyCoach/Resources/StoreKit/MyCoach.storekit", "MyCoach.storekit"),
+        ],
+        "MyCoach/Resources/Data": [
+            ("MyCoach/Resources/Data/quotes.json", "quotes.json"),
+        ],
+        "MyCoach/Resources/Audio": [
+            ("MyCoach/Resources/Audio/calm.m4a", "calm.m4a"),
         ],
     }
 

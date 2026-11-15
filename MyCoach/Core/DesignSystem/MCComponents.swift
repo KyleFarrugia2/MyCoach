@@ -27,6 +27,7 @@ struct MCPrimaryButton: View {
                     .fill(isEnabled && !isLoading ? MCTheme.ColorToken.primary : MCTheme.ColorToken.grey400)
             )
         }
+        .buttonStyle(MCPressStyle())
         .disabled(!isEnabled || isLoading)
         .accessibilityLabel(title)
     }
@@ -55,6 +56,7 @@ struct MCSecondaryButton: View {
                         )
                 )
         }
+        .buttonStyle(MCPressStyle())
         .disabled(!isEnabled)
         .accessibilityLabel(title)
     }

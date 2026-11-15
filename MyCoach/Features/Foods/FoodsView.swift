@@ -262,7 +262,7 @@ private struct QuickLogFoodView: View {
     @State private var amountText = ""
 
     private var slots: [MealSlot] {
-        MealSlot.slots(isTrainingDay: env.profile.trainingSchedule.isTrainingDay(env.weekday(for: env.today)))
+        MealSlot.slots(isTrainingDay: env.isTrainingDay(on: env.today))
     }
 
     private var preview: (calories: Double, macros: MacroGrams)? {

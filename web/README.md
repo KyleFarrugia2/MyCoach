@@ -10,6 +10,16 @@ A web port of the iOS app that runs on Windows for development and installs on A
 
 The coach learns each user's own metabolism from their logged weight, food and steps. It uses a Kalman-filtered weight trend plus an online Bayesian regression, both trained on the device. It predicts their weekly rate of change and automatically adjusts calorie targets toward their goal, at most once a week and within safety caps. See [docs/ADAPTIVE_MODEL.md](../docs/ADAPTIVE_MODEL.md). The same model runs on iOS (`MyCoach/Services/Adaptive/AdaptiveModel.swift`), and `npm run fixtures` keeps the two implementations numerically identical.
 
+## Today tab
+
+- **Training or rest day:** shows what's on the plan and the next workout, with an **Emergency rest day** button. Today switches to rest-day calories, and the coach moves the session to a free day later that week (or skips it if nothing sensible fits). You can undo it.
+- **Sleep:** enter hours (`7.5` or `7:30`), with optional wake-ups. At 5 hours or less on a training day, the coach recommends taking a rest day.
+- **Catch-up:** step back up to 60 days to log or fix weight, sleep and steps for days you missed. A last-7-days table highlights the gaps. Backfilling an old weigh-in never overwrites your current weight.
+- **Coach's cardio:** daily low-intensity cardio guidance based on your goal, day type, sleep, steps and the adaptive model.
+- **Quote of the day:** 929 curated quotes, shuffled once with a fixed seed so every quote appears before any repeats. iOS and Android show the same quote on the same day. Sources and licences are listed in Settings → About; rebuild the collection with `Scripts/build_quotes.py`, then copy it to `MyCoach/Resources/Data/`.
+- **Calm music:** an original ambient loop (`Scripts/make_calm_music.py`). It starts after your first tap, pauses during workouts and when the app is in the background, and can be turned off in Settings → Sound.
+- **Training schedule:** set it in Settings (how many days, and which ones). The coach re-plans the week around it.
+
 ## Requirements (Windows)
 
 - Node.js 20+ (`node --version`)
@@ -30,6 +40,7 @@ Other scripts:
 | Command | What it does |
 |---|---|
 | `npm test` | Runs the engine, model and state tests (Vitest) |
+| `python Scripts/check_ios_on_windows.py` | Compiles the iOS engines + app state with the Windows Swift toolchain and runs 48 XCTest tests (everything except SwiftUI screens) |
 | `npm run fixtures` | With `GEN_FIXTURE=1`, regenerates the iOS/Android parity fixture after changing `adaptive.ts` |
 | `npm run typecheck` | TypeScript check |
 | `npm run build` | Production build into `web/dist/` |

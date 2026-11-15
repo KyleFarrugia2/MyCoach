@@ -80,6 +80,11 @@ struct OnboardingFlowView: View {
                     stepContent
                         .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
                         .padding(.vertical, MCTheme.Spacing.lg)
+                        .id(step)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
                 }
 
                 footer

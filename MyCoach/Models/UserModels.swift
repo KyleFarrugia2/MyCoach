@@ -89,6 +89,15 @@ struct UserPreferences: Codable, Equatable, Sendable {
         set { adaptiveAutoAdjustSetting = newValue }
     }
 
+    /// Optional for backward-compatible decoding. Use `calmingMusic`.
+    var calmingMusicSetting: Bool?
+
+    /// Calm background music (pauses automatically during workouts). Default on.
+    var calmingMusic: Bool {
+        get { calmingMusicSetting ?? true }
+        set { calmingMusicSetting = newValue }
+    }
+
     func mealName(for slot: MealSlot) -> String {
         customMealNames[slot.rawValue] ?? slot.displayName
     }

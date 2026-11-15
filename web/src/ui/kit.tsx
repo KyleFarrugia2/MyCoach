@@ -108,6 +108,8 @@ const paths: Record<string, ReactNode> = {
   download: <path d="M12 3v12M7 10l5 5 5-5M4 21h16" />,
   upload: <path d="M12 21V9M7 14l5-5 5 5M4 3h16" />,
   edit: <path d="M4 20h4L19 9l-4-4L4 16v4ZM14 6l4 4" />,
+  moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />,
+  heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />,
   barcode: <path d="M3 5v14M6 5v14M10 5v14M13 5v14M15 5v14M19 5v14M21 5v14M8 5v14" strokeWidth={1.6} />,
   basket: (
     <>

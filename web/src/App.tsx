@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { type MainTab, actions, useApp } from "./state/store";
 import { Icon, type IconName, OverlayHost } from "./ui/kit";
+import { syncMusic } from "./ui/music";
 import { Coach } from "./screens/Coach";
 import { FoodLog } from "./screens/FoodLog";
 import { Foods } from "./screens/Foods";
@@ -40,6 +41,11 @@ function useAppearance(pref: "system" | "light" | "dark") {
 export function App() {
   const s = useApp();
   useAppearance(s.profile.appearance);
+
+  // Calm music: on per setting, automatically off while a training session is running.
+  useEffect(() => {
+    syncMusic(s.preferences.calmingMusic, !!s.activeWorkout);
+  }, [s.preferences.calmingMusic, s.activeWorkout]);
 
   useEffect(() => {
     window.scrollTo(0, 0);

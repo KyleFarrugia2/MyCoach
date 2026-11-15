@@ -507,7 +507,7 @@ export function Onboarding() {
           </div>
         </div>
       )}
-      <div className="onboarding-body">{content}</div>
+      <div className="onboarding-body" key={step}>{content}</div>
       <div className="stack-sm">
         {step === "welcome" ? (
           <>

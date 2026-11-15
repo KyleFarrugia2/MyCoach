@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking // URLSession on Linux/Windows; no-op on Apple platforms
+#endif
 
 /// Barcode → food lookup. Port of `web/src/engines/barcode.ts` (keep in sync).
 ///

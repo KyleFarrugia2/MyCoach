@@ -85,6 +85,9 @@ Run the app from that scheme to exercise purchases in the local StoreKit configu
 
 ## Tests
 
+**On Windows/Linux (no Mac):** `python Scripts/check_ios_on_windows.py` compiles everything except the SwiftUI screens. That covers models, engines and `AppEnvironment`, built against small stand-ins for UIKit, StoreKit and AVFoundation. It then runs the unit tests with the Swift toolchain.
+
+
 In Xcode: Product → Test (`⌘U`), or:
 
 ```bash

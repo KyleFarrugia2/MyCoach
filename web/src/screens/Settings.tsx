@@ -14,6 +14,7 @@ import {
   WeekdayShort,
   hasCoachAIAccess,
 } from "../core/models";
+import { TRAINING_PRESETS } from "../engines/dayPlan";
 import { actions, useApp } from "../state/store";
 import { FoodRow, Icon, Segmented, Sheet, Toggle, confirmDialog, toast } from "../ui/kit";
 import { CustomFoodEditor } from "./FoodSheets";
@@ -160,7 +161,16 @@ export function Settings() {
       <p className="section-title">Coaching</p>
       <div className="list">
         <div className="list-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
-          <span>Training days ({p.trainingDays.length} / week)</span>
+          <span>How often do you want to train?</span>
+          <Segmented
+            options={[2, 3, 4, 5, 6].map((n) => ({ value: n, label: `${n}×` }))}
+            value={p.trainingDays.length}
+            onChange={(n) => {
+              actions.setTrainingDays(TRAINING_PRESETS[n]);
+              toast(`${n} training days a week — your plan is updated`);
+            }}
+          />
+          <span className="caption">Then pick the exact days that suit you. The coach plans training, rest days and meals around them.</span>
           <div className="row" style={{ gap: 6 }}>
             {WEEKDAYS.map((d) => {
               const on = p.trainingDays.includes(d);
@@ -173,8 +183,7 @@ export function Settings() {
                   onClick={() => {
                     const next = on ? p.trainingDays.filter((x) => x !== d) : [...p.trainingDays, d].sort();
                     if (next.length === 0) return toast("Keep at least one training day");
-                    actions.updateProfile({ trainingDays: next });
-                    rebuild();
+                    actions.setTrainingDays(next);
                   }}
                 >
                   {WeekdayShort[d]}
@@ -191,8 +200,7 @@ export function Settings() {
               style={{ width: 34, height: 34 }}
               aria-label="Decrease step target"
               onClick={() => {
-                actions.updateProfile({ stepTarget: Math.max(1_000, p.stepTarget - CoachingConfig.defaultStepIncrement) });
-                rebuild();
+                actions.setStepTarget(p.stepTarget - CoachingConfig.defaultStepIncrement);
               }}
             >
               <Icon name="minus" size={16} />
@@ -205,10 +213,7 @@ export function Settings() {
               style={{ width: 34, height: 34 }}
               aria-label="Increase step target"
               onClick={() => {
-                actions.updateProfile({
-                  stepTarget: Math.min(CoachingConfig.maxStepTarget, p.stepTarget + CoachingConfig.defaultStepIncrement),
-                });
-                rebuild();
+                actions.setStepTarget(p.stepTarget + CoachingConfig.defaultStepIncrement);
               }}
             >
               <Icon name="plus" size={16} />
@@ -245,6 +250,16 @@ export function Settings() {
           <span className="grow">Custom foods ({s.customFoods.length})</span>
           <Icon name="chevronRight" size={16} className="muted" />
         </button>
+      </div>
+
+      <p className="section-title">Sound</p>
+      <div className="list">
+        <Toggle
+          label="Calming background music"
+          sub="Soft ambient music while you use the app. It switches off automatically when a workout starts."
+          checked={s.preferences.calmingMusic}
+          onChange={(v) => actions.updatePreferences({ calmingMusic: v })}
+        />
       </div>
 
       <p className="section-title">Appearance</p>
@@ -360,6 +375,13 @@ export function Settings() {
         <Row label="Version" value={__APP_VERSION__} />
         <ButtonRow label="Terms of Use" onClick={() => setLegal("terms")} />
         <Row label="Support" value={AppIdentity.supportContactPlaceholder} />
+        <div className="list-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+          <span>Quote sources</span>
+          <span className="caption">
+            inspirational-quotes by Vinit Shahdeo (MIT) · daily-motivation by Ata Gowani (Apache-2.0) · english_quotes by
+            Abirate on Hugging Face (CC BY 4.0). Music: original composition for My Coach.
+          </span>
+        </div>
       </div>
 
       {customFoods && <CustomFoodsList onClose={() => setCustomFoods(false)} />}

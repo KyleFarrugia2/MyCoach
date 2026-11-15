@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { CoachingConfig } from "../core/config";
-import { type Day, addDays, ageYears, addMonths, datesInWeek, today, weekdayOf } from "../core/dates";
+import { type Day, type Weekday, addDays, ageYears, addMonths, datesInWeek, fromDay, today, weekdayOf } from "../core/dates";
 import {
   type CoachAIContext,
   type CoachChatMessage,
@@ -16,6 +16,7 @@ import {
   type NutritionTargetPair,
   type PlanAdjustment,
   type ProgressPhotoSet,
+  type SleepEntry,
   type StepEntry,
   type SubscriptionEntitlement,
   type UserPreferences,
@@ -42,6 +43,7 @@ import { evaluate } from "../engines/coaching";
 import { OFFLINE_COACH_MESSAGE, chat } from "../engines/coachAI";
 import { BUNDLED_FOODS } from "../engines/foodCatalog";
 import { type PlannerContext, generatePlanDay, swapPlanItem, swapPlanMeal, validatePlanDay } from "../engines/mealPlanner";
+import { type DayOverride, type DayType, dayType, takeEmergencyRest, undoEmergencyRest } from "../engines/dayPlan";
 import {
   adjustedStepTarget,
   applyCalorieAdjustment,
@@ -59,6 +61,7 @@ import {
   type WorkoutSession,
   type WorkoutTemplate,
   type WorkoutTemplateID,
+  TEMPLATE_IDS,
   WORKOUT_LIBRARY,
   stagnantExercises,
 } from "../engines/workout";
@@ -86,6 +89,9 @@ export interface PersistedState {
   workoutSessions: WorkoutSession[];
   workoutTemplateOverrides: TemplateOverride[];
   activeWorkout?: WorkoutSession;
+  sleepEntries: SleepEntry[];
+  /** Days where the coach changed the schedule (emergency rest days and moved sessions). */
+  dayOverrides: DayOverride[];
   workoutRestEndsAt?: string;
 }
 
@@ -137,6 +143,7 @@ function defaultPreferences(): UserPreferences {
       progressPhotosEnabled: true,
     },
     adaptiveAutoAdjust: true,
+    calmingMusic: true,
   };
 }
 
@@ -179,6 +186,8 @@ function freshState(): AppState {
     workoutSessions: [],
     workoutTemplateOverrides: [],
     activeWorkout: undefined,
+    sleepEntries: [],
+    dayOverrides: [],
     workoutRestEndsAt: undefined,
     selectedTab: "today",
     pendingStagnationAlerts: [],
@@ -279,7 +288,11 @@ if (typeof document !== "undefined") {
 
 export const hasCoachAccess = (s: AppState = state) => hasCoachAIAccess(s.subscription);
 
-export const isTrainingDay = (s: AppState, day: Day) => s.profile.trainingDays.includes(weekdayOf(day));
+/** Training or rest for a day: the weekly schedule plus any coach overrides (emergency rest, moved session). */
+export const dayTypeOf = (s: AppState, day: Day): DayType => dayType(s.profile.trainingDays, s.dayOverrides, day);
+export const isTrainingDay = (s: AppState, day: Day) => dayTypeOf(s, day) === "training";
+export const overrideOn = (s: AppState, day: Day) => s.dayOverrides.find((o) => o.day === day);
+export const sleepOn = (s: AppState, day: Day) => s.sleepEntries.find((e) => e.localDate === day);
 
 export function targetFor(s: AppState, day: Day): DailyNutritionTarget | undefined {
   if (!s.targets) return undefined;
@@ -623,9 +636,9 @@ export const actions = {
 
   // Weight / steps ------------------------------------------------------------
 
-  logMorningWeight(value: number, unit: WeightUnit) {
+  /** Log (or correct) the morning weight for any day up to today — lets users catch up on missed days. */
+  logMorningWeight(value: number, unit: WeightUnit, day: Day = today()) {
     const kg = UnitConversion.kilograms(value, unit);
-    const day = today();
     update((s) => {
       const existing = s.weightEntries.find((e) => e.localDate === day && e.isOfficialMorningCheckIn);
       const entries = existing
@@ -635,6 +648,9 @@ export const actions = {
             { id: uuid(), timestamp: nowISO(), localDate: day, weightKg: kg, inputUnit: unit, isOfficialMorningCheckIn: true },
           ];
       entries.sort((a, b) => a.localDate.localeCompare(b.localDate));
+      // Only the most recent weigh-in sets "current weight" — backfilling an older day doesn't.
+      const latest = entries.filter((e) => e.isOfficialMorningCheckIn).at(-1);
+      if (!latest || latest.localDate !== day) return { weightEntries: entries };
       const profile = { ...s.profile, currentWeightKg: kg, updatedAt: nowISO() };
       // Protein follows bodyweight (1 g/lb); calories stay as set.
       return { weightEntries: entries, profile, targets: targetsForCurrentWeight({ ...s, profile }) };
@@ -646,14 +662,105 @@ export const actions = {
     update((s) => ({ weightEntries: s.weightEntries.filter((e) => e.id !== id) }));
   },
 
-  logSteps(steps: number) {
-    const day = today();
+  logSteps(steps: number, day: Day = today()) {
     update((s) => {
       const existing = stepsOn(s, day);
       const stepEntries = existing
         ? s.stepEntries.map((e) => (e.id === existing.id ? { ...e, steps: Math.max(0, steps) } : e))
         : [...s.stepEntries, { id: uuid(), localDate: day, steps: Math.max(0, steps), source: "manual" as const }];
       return { stepEntries };
+    });
+  },
+
+  /** Sleep for the night before `day`. Wake-ups are optional. */
+  logSleep(hours: number, wakeUps: number | undefined, day: Day = today()) {
+    const clean = Math.min(Math.max(hours, 0), 24);
+    update((s) => {
+      const existing = sleepOn(s, day);
+      const entry: SleepEntry = { id: existing?.id ?? uuid(), localDate: day, hours: clean, wakeUps };
+      const sleepEntries = existing ? s.sleepEntries.map((e) => (e.id === existing.id ? entry : e)) : [...s.sleepEntries, entry];
+      sleepEntries.sort((a, b) => a.localDate.localeCompare(b.localDate));
+      return { sleepEntries };
+    });
+  },
+
+  clearSleep(day: Day) {
+    update((s) => ({ sleepEntries: s.sleepEntries.filter((e) => e.localDate !== day) }));
+  },
+
+  // Schedule ------------------------------------------------------------------
+
+  /**
+   * Emergency rest day: today becomes a rest day (rest-day calories), and the session moves to the best
+   * remaining rest day this week. Meal plans for both days are rebuilt.
+   */
+  takeEmergencyRestDay(day: Day = today()): { movedTo?: Day } {
+    const s = state;
+    if (!isTrainingDay(s, day)) return {};
+    const result = takeEmergencyRest(s.profile.trainingDays, s.dayOverrides, day);
+    const affected = [day, ...(result.movedTo ? [result.movedTo] : [])];
+    update((st) => {
+      const next: AppState = { ...st, dayOverrides: result.overrides };
+      const mealPlanDays = { ...st.mealPlanDays };
+      if (hasCoachAIAccess(st.subscription)) {
+        for (const d of affected) {
+          if (!st.mealPlanDays[d] && d !== day) continue;
+          const plan = planFor(next, d);
+          if (plan) mealPlanDays[d] = plan;
+        }
+      }
+      const moved = result.movedTo ? ` Your session moves to ${longWeekday(result.movedTo)}.` : " Your week has no good slot to move it to, so it's skipped — no stress.";
+      return {
+        dayOverrides: result.overrides,
+        mealPlanDays,
+        coachStatusMessage: `Rest day taken.${moved}`,
+        chatMessages: [
+          ...st.chatMessages,
+          message("coach", `Got it — today is a rest day. I've switched you to rest-day calories.${moved} Recovery is part of the plan.`),
+        ],
+      };
+    });
+    return { movedTo: result.movedTo };
+  },
+
+  undoEmergencyRestDay(day: Day = today()) {
+    update((st) => {
+      const overrides = undoEmergencyRest(st.dayOverrides, day);
+      const next: AppState = { ...st, dayOverrides: overrides };
+      const mealPlanDays = { ...st.mealPlanDays };
+      if (hasCoachAIAccess(st.subscription)) {
+        const old = st.dayOverrides.find((o) => o.day === day);
+        for (const d of [day, ...(old?.linkedDay ? [old.linkedDay] : [])]) {
+          if (!st.mealPlanDays[d] && d !== day) continue;
+          const plan = planFor(next, d);
+          if (plan) mealPlanDays[d] = plan;
+        }
+      }
+      return { dayOverrides: overrides, mealPlanDays, coachStatusMessage: "Back on the original plan for today." };
+    });
+  },
+
+  /** Step target change — keeps calories (and any coach/model adjustments) as they are. */
+  setStepTarget(steps: number) {
+    const n = Math.max(1_000, Math.min(CoachingConfig.maxStepTarget, Math.round(steps)));
+    update((s) => ({
+      profile: { ...s.profile, stepTarget: n, updatedAt: nowISO() },
+      targets: s.targets
+        ? { training: { ...s.targets.training, stepTarget: n }, rest: { ...s.targets.rest, stepTarget: n } }
+        : s.targets,
+    }));
+  },
+
+  /** Change the weekly training schedule; the coach re-plans the current week around it. */
+  setTrainingDays(days: Weekday[]) {
+    if (days.length === 0) return;
+    update((s) => {
+      const profile = { ...s.profile, trainingDays: [...days].sort((a, b) => a - b), updatedAt: nowISO() };
+      // Future overrides were based on the old schedule — drop them.
+      const dayOverrides = s.dayOverrides.filter((o) => o.day < today());
+      const targets = targetsForCurrentWeight({ ...s, profile });
+      const next: AppState = { ...s, profile, dayOverrides, targets };
+      return { profile, dayOverrides, targets, mealPlanDays: withWeekPlan(next, today()) };
     });
   },
 
@@ -1101,6 +1208,8 @@ export const actions = {
       activeWorkout: undefined,
       workoutRestEndsAt: undefined,
       pendingStagnationAlerts: [],
+      sleepEntries: [],
+      dayOverrides: [],
       chatMessages: [message("coach", "Your coaching data was cleared. Generate a new plan when you're ready.")],
       coachStatusMessage: "Coaching data deleted.",
     }));
@@ -1251,6 +1360,17 @@ export function resolvedTemplate(s: AppState, id: WorkoutTemplateID): WorkoutTem
       override.setCounts[e.id] !== undefined ? { ...e, defaultSets: Math.max(1, override.setCounts[e.id]) } : e,
     ),
   };
+}
+
+/** The next workout in the rotation (after the most recently completed session). */
+export function nextWorkoutTemplate(s: AppState): WorkoutTemplateID {
+  const last = s.workoutSessions.filter((w) => w.completedAt).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+  if (!last) return TEMPLATE_IDS[0];
+  return TEMPLATE_IDS[(TEMPLATE_IDS.indexOf(last.templateID) + 1) % TEMPLATE_IDS.length];
+}
+
+function longWeekday(day: Day): string {
+  return fromDay(day).toLocaleDateString(undefined, { weekday: "long" });
 }
 
 export function lastCompletedSession(s: AppState, id: WorkoutTemplateID): WorkoutSession | undefined {

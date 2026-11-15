@@ -502,10 +502,20 @@ export interface UserPreferences {
   notifications: NotificationSettings;
   /** Let the personal adaptive model change calorie targets automatically (at most weekly). */
   adaptiveAutoAdjust: boolean;
+  /** Calm background music (pauses automatically during workouts). */
+  calmingMusic: boolean;
 }
 
 export function mealName(prefs: UserPreferences, slot: MealSlot): string {
   return prefs.customMealNames[slot] ?? MealSlotLabel[slot];
+}
+
+/** Sleep logged on the day you wake up (i.e. "last night"). */
+export interface SleepEntry {
+  id: string;
+  localDate: Day;
+  hours: number;
+  wakeUps?: number;
 }
 
 export interface StepEntry {

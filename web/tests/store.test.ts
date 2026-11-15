@@ -129,3 +129,44 @@ describe("legacy meal plans", async () => {
     expect(rebuilt.meals.flatMap((m) => m.items).some((i) => i.food.measurementState === "cooked")).toBe(false);
   });
 });
+
+describe("today: catch-up logging and schedule changes", async () => {
+  const { actions, getState, isTrainingDay, sleepOn, targetFor } = await import("../src/state/store");
+  const { today, addDays, weekdayOf } = await import("../src/core/dates");
+
+  it("backfilling an older weigh-in doesn't overwrite current weight", () => {
+    actions.logMorningWeight(82, "kilogram", today());
+    actions.logMorningWeight(84, "kilogram", addDays(today(), -3));
+    expect(getState().profile.currentWeightKg).toBeCloseTo(82);
+    expect(getState().weightEntries.some((e) => e.localDate === addDays(today(), -3) && e.weightKg === 84)).toBe(true);
+  });
+
+  it("logs sleep with optional wake-ups for past days", () => {
+    actions.logSleep(4.5, undefined, today());
+    actions.logSleep(7.25, 2, addDays(today(), -1));
+    expect(sleepOn(getState(), today())!.hours).toBe(4.5);
+    expect(sleepOn(getState(), addDays(today(), -1))!.wakeUps).toBe(2);
+    actions.logSleep(8, undefined, today());
+    expect(getState().sleepEntries.filter((e) => e.localDate === today())).toHaveLength(1);
+  });
+
+  it("emergency rest switches today to rest-day targets, undo restores it", () => {
+    actions.setTrainingDays([weekdayOf(today())]);
+    expect(isTrainingDay(getState(), today())).toBe(true);
+    const restCalories = getState().targets!.rest.calories;
+    actions.takeEmergencyRestDay(today());
+    expect(isTrainingDay(getState(), today())).toBe(false);
+    expect(targetFor(getState(), today())!.calories).toBe(restCalories);
+    actions.undoEmergencyRestDay(today());
+    expect(isTrainingDay(getState(), today())).toBe(true);
+  });
+
+  it("schedule and step changes keep coach-adjusted calories", () => {
+    const before = getState().targets!.training.calories;
+    actions.setStepTarget(10_500);
+    actions.setTrainingDays([1, 3, 5]);
+    expect(getState().targets!.training.calories).toBe(before);
+    expect(getState().targets!.training.stepTarget).toBe(10_500);
+    expect(getState().profile.trainingDays).toEqual([1, 3, 5]);
+  });
+});

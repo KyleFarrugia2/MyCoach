@@ -3,8 +3,8 @@
  * - Same-origin assets (hashed by Vite): cache-first, cached on first use.
  * Bump CACHE when the caching strategy changes; asset updates are picked up automatically.
  */
-const CACHE = "mycoach-v2"; // v2: new app icon
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-256.png"];
+const CACHE = "mycoach-v3"; // v3: quotes + music
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-256.png", "./data/quotes.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,6 +29,8 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // Media is fetched with Range requests — let the browser stream it directly.
+  if (req.headers.has("range") || url.pathname.endsWith(".m4a")) return;
 
   if (req.mode === "navigate") {
     event.respondWith(

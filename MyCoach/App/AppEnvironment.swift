@@ -29,6 +29,9 @@ final class AppEnvironment {
     var paywallComparisonCoachEUR: Double
     var workoutSessions: [WorkoutSession]
     var workoutTemplateOverrides: [WorkoutTemplateOverride]
+    var sleepEntries: [SleepEntry]
+    /// Days where the coach changed the schedule (emergency rest days and moved sessions).
+    var dayOverrides: [DayOverride]
     var activeWorkout: WorkoutSession?
     var workoutRestEndsAt: Date?
     var pendingStagnationAlerts: [String] = []
@@ -39,6 +42,7 @@ final class AppEnvironment {
     @ObservationIgnored var adaptiveCacheDay: Date?
     @ObservationIgnored var adaptiveCachedModel: AdaptiveModelSnapshot?
     @ObservationIgnored var isApplyingAdaptiveAdjustment = false
+    @ObservationIgnored let music = CalmMusicPlayer()
 
     // MARK: - Services
 
@@ -61,10 +65,13 @@ final class AppEnvironment {
                 .appendingPathComponent("MyCoach", isDirectory: true)
         self.persistenceURL = dir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // The subscription callback can't capture `self` before init finishes; it goes through this box.
+        let ref = AppEnvironmentRef()
 
         if let snapshot = Self.load(from: dir) {
-            self.profile = snapshot.profile
-            self.profile.mealCount = CoachingConfig.requiredMealCount
+            var loadedProfile = snapshot.profile
+            loadedProfile.mealCount = CoachingConfig.requiredMealCount
+            self.profile = loadedProfile
             self.preferences = snapshot.preferences
             self.weightEntries = snapshot.weightEntries
             self.stepEntries = snapshot.stepEntries
@@ -82,10 +89,12 @@ final class AppEnvironment {
             self.paywallComparisonCoachEUR = snapshot.paywallComparisonCoachEUR
             self.workoutSessions = snapshot.workoutSessions
             self.workoutTemplateOverrides = snapshot.workoutTemplateOverrides
-            self.subscriptionProvider = subscriptionProvider ?? SubscriptionManager(initial: snapshot.subscription) { [weak self] entitlement in
+            self.sleepEntries = snapshot.sleepEntries
+            self.dayOverrides = snapshot.dayOverrides
+            self.subscriptionProvider = subscriptionProvider ?? SubscriptionManager(initial: snapshot.subscription) { entitlement in
                 Task { @MainActor in
-                    self?.subscription = entitlement
-                    self?.save()
+                    ref.env?.subscription = entitlement
+                    ref.env?.save()
                 }
             }
         } else {
@@ -118,13 +127,16 @@ final class AppEnvironment {
             self.paywallComparisonCoachEUR = CoachingConfig.subscriptionMarketingComparisonEUR
             self.workoutSessions = []
             self.workoutTemplateOverrides = []
-            self.subscriptionProvider = subscriptionProvider ?? SubscriptionManager { [weak self] entitlement in
+            self.sleepEntries = []
+            self.dayOverrides = []
+            self.subscriptionProvider = subscriptionProvider ?? SubscriptionManager { entitlement in
                 Task { @MainActor in
-                    self?.subscription = entitlement
-                    self?.save()
+                    ref.env?.subscription = entitlement
+                    ref.env?.save()
                 }
             }
         }
+        ref.env = self
 
         Task { [weak self] in
             guard let self else { return }
@@ -134,6 +146,7 @@ final class AppEnvironment {
             // and catch up on any adjustment that became due while the app was closed.
             self.revalidateStoredPlans()
             self.runAdaptiveAutoAdjust()
+            self.syncMusic()
         }
     }
 
@@ -145,9 +158,7 @@ final class AppEnvironment {
 
     var todayTarget: DailyNutritionTarget? {
         guard let targets else { return nil }
-        let weekday = weekday(for: today)
-        let training = profile.trainingSchedule.isTrainingDay(weekday)
-        return targets.target(isTrainingDay: training)
+        return targets.target(isTrainingDay: isTrainingDay(on: today))
     }
 
     var todayMealPlan: MealPlanDay? {
@@ -236,9 +247,10 @@ final class AppEnvironment {
 
     // MARK: - Weight
 
-    func logMorningWeight(_ value: Double, unit: WeightUnit) {
+    /// Log (or correct) the morning weight for any day up to today — lets users catch up on missed days.
+    func logMorningWeight(_ value: Double, unit: WeightUnit, on date: Date = Date()) {
         let kg = UnitConversion.kilograms(from: value, unit: unit)
-        let day = today
+        let day = calendar.localDate(for: date)
         if let index = weightEntries.firstIndex(where: {
             calendar.isSameLocalDay($0.localDate, day) && $0.isOfficialMorningCheckIn
         }) {
@@ -256,11 +268,14 @@ final class AppEnvironment {
                 )
             )
         }
-        profile.currentWeightKg = kg
-        profile.updatedAt = Date()
-        // Protein follows bodyweight (1 g/lb); calories stay as set.
-        refreshTargetsForCurrentWeight()
         weightEntries.sort { $0.localDate < $1.localDate }
+        // Only the most recent weigh-in sets "current weight" — backfilling an older day doesn't.
+        if let latest = weightEntries.last(where: \.isOfficialMorningCheckIn), calendar.isSameLocalDay(latest.localDate, day) {
+            profile.currentWeightKg = kg
+            profile.updatedAt = Date()
+            // Protein follows bodyweight (1 g/lb); calories stay as set.
+            refreshTargetsForCurrentWeight()
+        }
         save()
         runAdaptiveAutoAdjust()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -268,8 +283,8 @@ final class AppEnvironment {
 
     // MARK: - Steps
 
-    func logSteps(_ steps: Int, source: StepEntry.StepSource = .manual) {
-        let day = today
+    func logSteps(_ steps: Int, source: StepEntry.StepSource = .manual, on date: Date = Date()) {
+        let day = calendar.localDate(for: date)
         if let index = stepEntries.firstIndex(where: { calendar.isSameLocalDay($0.localDate, day) }) {
             stepEntries[index].steps = max(0, steps)
             stepEntries[index].source = source
@@ -279,6 +294,131 @@ final class AppEnvironment {
         }
         save()
         runAdaptiveAutoAdjust()
+    }
+
+    // MARK: - Sleep
+
+    func sleep(on date: Date) -> SleepEntry? {
+        sleepEntries.first { calendar.isSameLocalDay($0.localDate, date) }
+    }
+
+    /// Sleep for the night before `date`. Wake-ups are optional.
+    func logSleep(hours: Double, wakeUps: Int?, on date: Date = Date()) {
+        let day = calendar.localDate(for: date)
+        if let index = sleepEntries.firstIndex(where: { calendar.isSameLocalDay($0.localDate, day) }) {
+            sleepEntries[index] = SleepEntry(id: sleepEntries[index].id, localDate: day, hours: hours, wakeUps: wakeUps)
+        } else {
+            sleepEntries.append(SleepEntry(localDate: day, hours: hours, wakeUps: wakeUps))
+        }
+        sleepEntries.sort { $0.localDate < $1.localDate }
+        save()
+    }
+
+    func weightEntry(on date: Date) -> WeightEntry? {
+        weightEntries.first { calendar.isSameLocalDay($0.localDate, date) && $0.isOfficialMorningCheckIn }
+    }
+
+    func steps(on date: Date) -> StepEntry? {
+        stepEntries.first { calendar.isSameLocalDay($0.localDate, date) }
+    }
+
+    // MARK: - Schedule (the coach works around the user)
+
+    private var dayPlan: DayPlanEngine { DayPlanEngine(calendar: calendar) }
+
+    func dayPlanWeekday(for date: Date) -> Weekday {
+        dayPlan.weekday(for: date)
+    }
+
+    func dayType(on date: Date) -> DayType {
+        dayPlan.dayType(trainingDays: profile.trainingSchedule.trainingDays, overrides: dayOverrides, on: date)
+    }
+
+    func isTrainingDay(on date: Date) -> Bool {
+        dayType(on: date) == .training
+    }
+
+    func dayOverride(on date: Date) -> DayOverride? {
+        dayPlan.override(in: dayOverrides, on: date)
+    }
+
+    func target(on date: Date) -> DailyNutritionTarget? {
+        targets?.target(isTrainingDay: isTrainingDay(on: date))
+    }
+
+    /// Emergency rest day: the day switches to rest-day calories and the session moves to the best remaining
+    /// rest day this week (or is skipped). Meal plans for affected days are rebuilt.
+    @discardableResult
+    func takeEmergencyRestDay(on date: Date = Date()) -> Date? {
+        let day = calendar.localDate(for: date)
+        guard isTrainingDay(on: day) else { return nil }
+        let result = dayPlan.takeEmergencyRest(trainingDays: profile.trainingSchedule.trainingDays, overrides: dayOverrides, on: day)
+        dayOverrides = result.overrides
+        rebuildPlans(for: [day] + (result.movedTo.map { [$0] } ?? []))
+        let moved = result.movedTo.map { " Your session moves to \($0.formatted(.dateTime.weekday(.wide)))." }
+            ?? " Your week has no good slot to move it to, so it's skipped — no stress."
+        coachStatusMessage = "Rest day taken.\(moved)"
+        chatMessages.append(
+            CoachChatMessage(role: .coach, text: "Got it — today is a rest day. I've switched you to rest-day calories.\(moved) Recovery is part of the plan.")
+        )
+        save()
+        return result.movedTo
+    }
+
+    func undoEmergencyRestDay(on date: Date = Date()) {
+        let day = calendar.localDate(for: date)
+        let linked = dayOverride(on: day)?.linkedDay
+        dayOverrides = dayPlan.undoEmergencyRest(overrides: dayOverrides, on: day)
+        rebuildPlans(for: [day] + (linked.map { [$0] } ?? []))
+        coachStatusMessage = "Back on the original plan for today."
+        save()
+    }
+
+    private func rebuildPlans(for days: [Date]) {
+        guard FeatureAccess.canGenerateMealPlan(subscription), let targets else { return }
+        for day in days where mealPlanDays[Self.calendarKey(day)] != nil || calendar.isSameLocalDay(day, today) {
+            mealPlanDays[Self.calendarKey(day)] = plannedDay(day, targets: targets)
+        }
+    }
+
+    /// Change the weekly training schedule; the coach re-plans the current week around it.
+    func setTrainingDays(_ days: Set<Weekday>) {
+        guard !days.isEmpty else { return }
+        profile.trainingSchedule.trainingDays = days
+        profile.updatedAt = Date()
+        // Future overrides were based on the old schedule — drop them.
+        dayOverrides = dayOverrides.filter { $0.day < today }
+        refreshTargetsForCurrentWeight()
+        if FeatureAccess.canGenerateMealPlan(subscription) {
+            generateMealPlan(forWeekContaining: today)
+        } else {
+            save()
+        }
+    }
+
+    /// Step target change — keeps calories (and any coach/model adjustments) as they are.
+    func setStepTarget(_ steps: Int) {
+        let n = min(max(1_000, steps), CoachingConfig.maxStepTarget)
+        profile.stepTarget = n
+        profile.updatedAt = Date()
+        targets?.training.stepTarget = n
+        targets?.rest.stepTarget = n
+        save()
+    }
+
+    /// The next workout in the rotation (after the most recently completed session).
+    var nextWorkoutTemplate: WorkoutTemplateID {
+        let all = WorkoutTemplateID.allCases
+        guard let last = workoutSessions.filter(\.isCompleted).max(by: { $0.startedAt < $1.startedAt }),
+              let index = all.firstIndex(of: last.templateID) else { return all[0] }
+        return all[(index + 1) % all.count]
+    }
+
+    // MARK: - Calm music
+
+    /// On per setting; automatically off while a training session is running.
+    func syncMusic() {
+        music.sync(enabled: preferences.calmingMusic, workoutActive: activeWorkout != nil)
     }
 
     // MARK: - Food diary
@@ -424,7 +564,7 @@ final class AppEnvironment {
 
     /// Planner inputs for a given day (intra-workout only on training days).
     func plannerContext(for date: Date) -> PlannerContext {
-        let training = profile.trainingSchedule.isTrainingDay(weekday(for: date))
+        let training = isTrainingDay(on: date)
         return PlannerContext(
             allergies: Array(profile.allergies).sorted { $0.rawValue < $1.rawValue },
             dislikedFoods: profile.dislikedFoods,
@@ -458,7 +598,7 @@ final class AppEnvironment {
 
     private func plannedDay(_ day: Date, targets: NutritionTargetPair) -> MealPlanDay {
         let weekday = weekday(for: day)
-        let training = profile.trainingSchedule.isTrainingDay(weekday)
+        let training = isTrainingDay(on: day)
         return MealPlanner.generateDay(
             date: day,
             weekday: weekday,
@@ -827,6 +967,8 @@ final class AppEnvironment {
         activeWorkout = nil
         workoutRestEndsAt = nil
         pendingStagnationAlerts = []
+        sleepEntries = []
+        dayOverrides = []
         chatMessages = [
             CoachChatMessage(role: .coach, text: "Your coaching data was cleared. Generate a new plan when you're ready.")
         ]
@@ -928,6 +1070,7 @@ final class AppEnvironment {
         )
         workoutRestEndsAt = nil
         selectedTab = .workout
+        syncMusic()
     }
 
     func logSet(
@@ -956,6 +1099,7 @@ final class AppEnvironment {
     func discardActiveWorkout() {
         activeWorkout = nil
         workoutRestEndsAt = nil
+        syncMusic()
     }
 
     @discardableResult
@@ -966,6 +1110,7 @@ final class AppEnvironment {
         workoutSessions.sort { $0.startedAt > $1.startedAt }
         activeWorkout = nil
         workoutRestEndsAt = nil
+        syncMusic()
 
         let stagnant = WorkoutProgressAnalyzer.stagnantExercises(
             templateID: session.templateID,
@@ -1054,7 +1199,9 @@ final class AppEnvironment {
             paywallComparisonTraditionalEUR: paywallComparisonTraditionalEUR,
             paywallComparisonCoachEUR: paywallComparisonCoachEUR,
             workoutSessions: workoutSessions,
-            workoutTemplateOverrides: workoutTemplateOverrides
+            workoutTemplateOverrides: workoutTemplateOverrides,
+            sleepEntries: sleepEntries,
+            dayOverrides: dayOverrides
         )
     }
 
@@ -1094,21 +1241,21 @@ final class AppEnvironment {
             FoodItem(name: "Potatoes", source: .bundledGeneric, servingDescription: "100 g raw", servingGrams: 100, calories: 77, proteinGrams: 2, carbohydrateGrams: 17, fatGrams: 0.1, measurementState: .raw, isVerified: true),
             FoodItem(name: "Pasta", source: .bundledGeneric, servingDescription: "100 g dry", servingGrams: 100, calories: 350, proteinGrams: 12, carbohydrateGrams: 72, fatGrams: 1.5, measurementState: .dry, isVerified: true),
             FoodItem(name: "Oats", source: .bundledGeneric, servingDescription: "100 g dry", servingGrams: 100, calories: 380, proteinGrams: 13, carbohydrateGrams: 67, fatGrams: 7, measurementState: .dry, isVerified: true),
-            FoodItem(name: "Eggs", source: .bundledGeneric, servingDescription: "1 large", servingGrams: 50, calories: 70, proteinGrams: 6, carbohydrateGrams: 0.5, fatGrams: 5, measurementState: .raw, allergenTags: [.eggs], isVerified: true),
-            FoodItem(name: "Egg whites", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 52, proteinGrams: 11, carbohydrateGrams: 0.7, fatGrams: 0.2, measurementState: .raw, allergenTags: [.eggs], isVerified: true),
-            FoodItem(name: "Greek yogurt", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 59, proteinGrams: 10, carbohydrateGrams: 3.6, fatGrams: 0.4, measurementState: .prepared, allergenTags: [.dairy], isVerified: true),
+            FoodItem(name: "Eggs", source: .bundledGeneric, servingDescription: "1 large", servingGrams: 50, calories: 70, proteinGrams: 6, carbohydrateGrams: 0.5, fatGrams: 5, measurementState: .raw, isVerified: true, allergenTags: [.eggs]),
+            FoodItem(name: "Egg whites", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 52, proteinGrams: 11, carbohydrateGrams: 0.7, fatGrams: 0.2, measurementState: .raw, isVerified: true, allergenTags: [.eggs]),
+            FoodItem(name: "Greek yogurt", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 59, proteinGrams: 10, carbohydrateGrams: 3.6, fatGrams: 0.4, measurementState: .prepared, isVerified: true, allergenTags: [.dairy]),
             FoodItem(name: "Banana", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 89, proteinGrams: 1.1, carbohydrateGrams: 23, fatGrams: 0.3, measurementState: .raw, isVerified: true),
             FoodItem(name: "Apple", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 52, proteinGrams: 0.3, carbohydrateGrams: 14, fatGrams: 0.2, measurementState: .raw, isVerified: true),
             FoodItem(name: "Berries", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 57, proteinGrams: 0.7, carbohydrateGrams: 14, fatGrams: 0.3, measurementState: .raw, isVerified: true),
             FoodItem(name: "Mixed vegetables", source: .bundledGeneric, servingDescription: "100 g raw", servingGrams: 100, calories: 35, proteinGrams: 2, carbohydrateGrams: 6, fatGrams: 0.2, measurementState: .raw, isVerified: true),
             FoodItem(name: "Broccoli", source: .bundledGeneric, servingDescription: "100 g raw", servingGrams: 100, calories: 34, proteinGrams: 2.8, carbohydrateGrams: 7, fatGrams: 0.4, measurementState: .raw, isVerified: true),
-            FoodItem(name: "Bread", source: .bundledGeneric, servingDescription: "1 slice (30 g)", servingGrams: 30, calories: 80, proteinGrams: 3, carbohydrateGrams: 14, fatGrams: 1, measurementState: .prepared, allergenTags: [.glutenWheat], isVerified: true),
-            FoodItem(name: "Peanut butter", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 588, proteinGrams: 25, carbohydrateGrams: 20, fatGrams: 50, measurementState: .prepared, allergenTags: [.peanuts], isVerified: true),
+            FoodItem(name: "Bread", source: .bundledGeneric, servingDescription: "1 slice (30 g)", servingGrams: 30, calories: 80, proteinGrams: 3, carbohydrateGrams: 14, fatGrams: 1, measurementState: .prepared, isVerified: true, allergenTags: [.glutenWheat]),
+            FoodItem(name: "Peanut butter", source: .bundledGeneric, servingDescription: "100 g", servingGrams: 100, calories: 588, proteinGrams: 25, carbohydrateGrams: 20, fatGrams: 50, measurementState: .prepared, isVerified: true, allergenTags: [.peanuts]),
             FoodItem(name: "Olive oil", source: .bundledGeneric, servingDescription: "1 tbsp (14 g)", servingGrams: 14, calories: 120, proteinGrams: 0, carbohydrateGrams: 0, fatGrams: 14, measurementState: .serving, isVerified: true),
             FoodItem(name: "Dextrose", source: .bundledGeneric, servingDescription: "100 g dry", servingGrams: 100, calories: 380, proteinGrams: 0, carbohydrateGrams: 95, fatGrams: 0, measurementState: .dry, isVerified: true),
             FoodItem(name: "EAAs", source: .bundledGeneric, servingDescription: "10 g serving", servingGrams: 10, calories: 40, proteinGrams: 10, carbohydrateGrams: 0, fatGrams: 0, measurementState: .serving, isVerified: true),
-            FoodItem(name: "Whey protein", source: .bundledGeneric, servingDescription: "30 g scoop", servingGrams: 30, calories: 120, proteinGrams: 24, carbohydrateGrams: 3, fatGrams: 1.5, measurementState: .serving, allergenTags: [.dairy], isVerified: true),
-            FoodItem(name: "Salmon", source: .bundledGeneric, servingDescription: "100 g raw", servingGrams: 100, calories: 208, proteinGrams: 20, carbohydrateGrams: 0, fatGrams: 13, measurementState: .raw, allergenTags: [.fish], isVerified: true),
+            FoodItem(name: "Whey protein", source: .bundledGeneric, servingDescription: "30 g scoop", servingGrams: 30, calories: 120, proteinGrams: 24, carbohydrateGrams: 3, fatGrams: 1.5, measurementState: .serving, isVerified: true, allergenTags: [.dairy]),
+            FoodItem(name: "Salmon", source: .bundledGeneric, servingDescription: "100 g raw", servingGrams: 100, calories: 208, proteinGrams: 20, carbohydrateGrams: 0, fatGrams: 13, measurementState: .raw, isVerified: true, allergenTags: [.fish]),
             FoodItem(name: "Spinach", source: .bundledGeneric, servingDescription: "100 g raw", servingGrams: 100, calories: 23, proteinGrams: 2.9, carbohydrateGrams: 3.6, fatGrams: 0.4, measurementState: .raw, isVerified: true)
         ]
     }
@@ -1165,8 +1312,7 @@ extension AppEnvironment {
             // Today only counts once marked complete — a half-logged day would look like a deficit.
             if let diary = diaries[Self.calendarKey(day)], !diary.entries.isEmpty, day < end || diary.markedComplete {
                 let total = diary.totalCalories
-                let training = profile.trainingSchedule.isTrainingDay(weekday(for: day))
-                let target = Double(targets?.target(isTrainingDay: training).calories ?? 2000)
+                let target = Double(targets?.target(isTrainingDay: isTrainingDay(on: day)).calories ?? 2000)
                 if total >= Self.minLoggedDayKcal, diary.markedComplete || total >= Self.completeDayFraction * target {
                     intake = total
                 }
@@ -1323,6 +1469,11 @@ extension AppEnvironment {
     }
 }
 
+/// Weak handle used by callbacks created during `AppEnvironment.init`, before `self` may be captured.
+private final class AppEnvironmentRef: @unchecked Sendable {
+    weak var env: AppEnvironment?
+}
+
 // MARK: - Tabs
 
 enum MainTab: Hashable {
@@ -1356,12 +1507,14 @@ private struct PersistedSnapshot: Codable {
     var paywallComparisonCoachEUR: Double
     var workoutSessions: [WorkoutSession]
     var workoutTemplateOverrides: [WorkoutTemplateOverride]
+    var sleepEntries: [SleepEntry]
+    var dayOverrides: [DayOverride]
 
     enum CodingKeys: String, CodingKey {
         case profile, preferences, weightEntries, stepEntries, diaries, mealPlanDays
         case targets, checkIns, chatMessages, planAdjustments, photoSets, customFoods
         case subscription, coachStatusMessage, paywallComparisonTraditionalEUR, paywallComparisonCoachEUR
-        case workoutSessions, workoutTemplateOverrides
+        case workoutSessions, workoutTemplateOverrides, sleepEntries, dayOverrides
     }
 
     init(
@@ -1382,7 +1535,9 @@ private struct PersistedSnapshot: Codable {
         paywallComparisonTraditionalEUR: Double,
         paywallComparisonCoachEUR: Double,
         workoutSessions: [WorkoutSession] = [],
-        workoutTemplateOverrides: [WorkoutTemplateOverride] = []
+        workoutTemplateOverrides: [WorkoutTemplateOverride] = [],
+        sleepEntries: [SleepEntry] = [],
+        dayOverrides: [DayOverride] = []
     ) {
         self.profile = profile
         self.preferences = preferences
@@ -1402,6 +1557,8 @@ private struct PersistedSnapshot: Codable {
         self.paywallComparisonCoachEUR = paywallComparisonCoachEUR
         self.workoutSessions = workoutSessions
         self.workoutTemplateOverrides = workoutTemplateOverrides
+        self.sleepEntries = sleepEntries
+        self.dayOverrides = dayOverrides
     }
 
     init(from decoder: Decoder) throws {
@@ -1424,6 +1581,8 @@ private struct PersistedSnapshot: Codable {
         paywallComparisonCoachEUR = try c.decode(Double.self, forKey: .paywallComparisonCoachEUR)
         workoutSessions = try c.decodeIfPresent([WorkoutSession].self, forKey: .workoutSessions) ?? []
         workoutTemplateOverrides = try c.decodeIfPresent([WorkoutTemplateOverride].self, forKey: .workoutTemplateOverrides) ?? []
+        sleepEntries = try c.decodeIfPresent([SleepEntry].self, forKey: .sleepEntries) ?? []
+        dayOverrides = try c.decodeIfPresent([DayOverride].self, forKey: .dayOverrides) ?? []
     }
 }
 
