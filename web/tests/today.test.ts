@@ -90,3 +90,25 @@ function dayAfter(day: string, n: number): string {
   const dt = new Date(Date.UTC(y, m - 1, d + n));
   return dt.toISOString().slice(0, 10);
 }
+
+describe("button sounds", async () => {
+  const { BUTTON_SOUNDS, soundForTap } = await import("../src/ui/clickSounds");
+  const { readdirSync } = await import("node:fs");
+
+  it("uses the nav sound for the nav bar and the screen's own sound everywhere else — never random", () => {
+    expect(soundForTap(true, "workout")).toBe("nav");
+    expect(soundForTap(false, "workout")).toBe("workout");
+    expect(soundForTap(false, "today")).toBe("today");
+    expect(soundForTap(false, "onboarding")).toBe("onboarding");
+    for (let i = 0; i < 5; i++) expect(soundForTap(false, "coach")).toBe("coach");
+  });
+
+  it("ships one sound per tab plus nav and onboarding, on both platforms", () => {
+    const web = readdirSync(new URL("../public/audio/clicks", import.meta.url)).sort();
+    const ios = readdirSync(new URL("../../MyCoach/Resources/Audio/Clicks", import.meta.url)).sort();
+    const expected = BUTTON_SOUNDS.map((n) => `${n}.wav`).sort();
+    expect(web).toEqual(expected);
+    expect(ios).toEqual(expected);
+    expect(new Set(BUTTON_SOUNDS).size).toBe(9);
+  });
+});

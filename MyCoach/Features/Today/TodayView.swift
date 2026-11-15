@@ -142,10 +142,16 @@ struct TodayView: View {
             }
             MCCard {
                 VStack(alignment: .leading, spacing: MCTheme.Spacing.sm) {
-                    Text("Coach").font(MCTheme.Typography.headline)
-                    Text(env.coachStatusMessage)
-                        .font(MCTheme.Typography.subheadline)
-                        .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+                    HStack(alignment: .top, spacing: MCTheme.Spacing.sm) {
+                        MCCoachAvatar(size: 40)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Coach").font(MCTheme.Typography.headline)
+                            Text(env.coachStatusMessage)
+                                .font(MCTheme.Typography.subheadline)
+                                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                     Button(env.hasCoachAccess ? "View Coach Analysis" : "Unlock Coach AI") { env.selectedTab = .coach }
                         .font(MCTheme.Typography.callout)
                         .foregroundStyle(MCTheme.ColorToken.primary)
@@ -675,6 +681,7 @@ private struct StepsCard: View {
 private struct RecentDaysCard: View {
     @Environment(AppEnvironment.self) private var env
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.buttonSound) private var sound
     @Binding var selected: Date
 
     var body: some View {
@@ -736,6 +743,7 @@ private struct RecentDaysCard: View {
         .background(isSelected ? MCTheme.ColorToken.primary.opacity(0.1) : .clear)
         .contentShape(Rectangle())
         .onTapGesture {
+            ButtonSounds.play(sound)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { selected = Calendar.current.startOfDay(for: day) }
         }
         .accessibilityElement(children: .combine)

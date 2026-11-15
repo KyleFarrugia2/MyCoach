@@ -3,8 +3,8 @@
  * - Same-origin assets (hashed by Vite): cache-first, cached on first use.
  * Bump CACHE when the caching strategy changes; asset updates are picked up automatically.
  */
-const CACHE = "mycoach-v3"; // v3: quotes + music
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-256.png", "./data/quotes.json"];
+const CACHE = "mycoach-v5"; // v5: coach avatar + workout celebration sounds
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/logo-256.png", "./icons/coach-avatar.svg", "./data/quotes.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

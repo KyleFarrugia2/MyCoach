@@ -504,6 +504,8 @@ export interface UserPreferences {
   adaptiveAutoAdjust: boolean;
   /** Calm background music (pauses automatically during workouts). */
   calmingMusic: boolean;
+  /** A short, different sound on every button tap. */
+  buttonSounds: boolean;
 }
 
 export function mealName(prefs: UserPreferences, slot: MealSlot): string {

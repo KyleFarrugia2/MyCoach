@@ -98,6 +98,15 @@ struct UserPreferences: Codable, Equatable, Sendable {
         set { calmingMusicSetting = newValue }
     }
 
+    /// Optional for backward-compatible decoding. Use `buttonSounds`.
+    var buttonSoundsSetting: Bool?
+
+    /// Designated button sounds (nav bar + one per tab). Default on.
+    var buttonSounds: Bool {
+        get { buttonSoundsSetting ?? true }
+        set { buttonSoundsSetting = newValue }
+    }
+
     func mealName(for slot: MealSlot) -> String {
         customMealNames[slot.rawValue] ?? slot.displayName
     }

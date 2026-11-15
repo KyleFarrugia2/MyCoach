@@ -419,6 +419,14 @@ final class AppEnvironment {
     /// On per setting; automatically off while a training session is running.
     func syncMusic() {
         music.sync(enabled: preferences.calmingMusic, workoutActive: activeWorkout != nil)
+        syncButtonSounds()
+    }
+
+    /// Button sounds live in the UI layer (`ButtonSounds`); this hook keeps them in step with the setting.
+    @ObservationIgnored var onButtonSoundsChange: ((Bool) -> Void)?
+
+    func syncButtonSounds() {
+        onButtonSoundsChange?(preferences.buttonSounds)
     }
 
     // MARK: - Food diary

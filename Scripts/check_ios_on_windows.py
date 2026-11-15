@@ -28,6 +28,7 @@ EXTRA_SOURCES = ["MyCoach/Services/Persistence/AppDataStore.swift"]
 TESTS = [
     "AdaptiveModelTests", "AdaptiveModelFixture", "MealPlannerTests", "MealPlannerFixture", "TodayFeaturesTests",
     "NutritionEngineTests", "CoachingDecisionEngineTests", "MealPlanSolverTests", "BarcodeLookupTests",
+    "WorkoutReviewTests",
 ]
 
 PACKAGE = """// swift-tools-version:5.9

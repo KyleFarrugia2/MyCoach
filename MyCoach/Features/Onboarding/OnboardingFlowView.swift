@@ -331,7 +331,7 @@ struct OnboardingFlowView: View {
                             .fill(MCTheme.Surface.elevated(colorScheme))
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoundPlainButtonStyle())
             }
         }
     }

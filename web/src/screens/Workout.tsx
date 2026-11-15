@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { type Day, addMonths, formatClock, formatLong, formatMedium, formatMonthYear, toDay, today } from "../core/dates";
+import { formatClock, formatMedium } from "../core/dates";
 import { parseDecimal } from "../engines/units";
 import {
   type ExerciseLog,
   TEMPLATE_IDS,
   type WorkoutTemplateID,
-  completedSets,
-  lastSetSummary,
-  sessionDurationSeconds,
   setSummary,
 } from "../engines/workout";
-import { actions, lastCompletedSession, previousPerformance, resolvedTemplate, useApp } from "../state/store";
+import { actions, getState, lastCompletedSession, previousPerformance, resolvedTemplate, useApp } from "../state/store";
+import { workoutStreak } from "../engines/workoutReview";
+import { type WorkoutCompletion, WorkoutComplete } from "./WorkoutComplete";
 import { Button, Card, Icon, NumberInput, Sheet, Stepper, confirmDialog, toast, useTick } from "../ui/kit";
 
 function stagnationMessage(names: string[]) {
@@ -21,10 +20,9 @@ function stagnationMessage(names: string[]) {
 
 export function Workout() {
   const s = useApp();
-  const [month, setMonth] = useState<Day>(today().slice(0, 8) + "01");
-  const [selectedDay, setSelectedDay] = useState<Day>(today());
   const [preview, setPreview] = useState<WorkoutTemplateID | null>(null);
   const [activeOpen, setActiveOpen] = useState(!!s.activeWorkout);
+  const [completion, setCompletion] = useState<WorkoutCompletion | null>(null);
 
   useEffect(() => {
     if (s.pendingStagnationAlerts.length === 0) return;
@@ -32,18 +30,6 @@ export function Workout() {
       () => actions.acknowledgeStagnationAlerts(),
     );
   }, [s.pendingStagnationAlerts]);
-
-  // Monday-first month grid.
-  const first = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1, 1);
-  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-  const lead = (first.getDay() + 6) % 7;
-  const cells: (Day | null)[] = [
-    ...Array<null>(lead).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => toDay(new Date(first.getFullYear(), first.getMonth(), i + 1))),
-  ];
-  while (cells.length % 7) cells.push(null);
-  const workoutDays = new Set(s.workoutSessions.map((w) => w.localDate));
-  const sessions = s.workoutSessions.filter((w) => w.localDate === selectedDay).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
   return (
     <div className="screen">
@@ -62,91 +48,6 @@ export function Workout() {
           </div>
         </button>
       )}
-
-      <Card>
-        <div className="row-between">
-          <button className="icon-btn" aria-label="Previous month" onClick={() => setMonth(addMonths(month, -1))}>
-            <Icon name="chevronLeft" />
-          </button>
-          <span className="headline">{formatMonthYear(month)}</span>
-          <button className="icon-btn" aria-label="Next month" onClick={() => setMonth(addMonths(month, 1))}>
-            <Icon name="chevronRight" />
-          </button>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, textAlign: "center" }}>
-          {["M", "T", "W", "T", "F", "S", "S"].map((l, i) => (
-            <span key={i} className="caption">
-              {l}
-            </span>
-          ))}
-          {cells.map((d, i) =>
-            d ? (
-              <button
-                key={d}
-                onClick={() => setSelectedDay(d)}
-                style={{
-                  border: "none",
-                  borderRadius: "var(--r-sm)",
-                  padding: "6px 0",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 3,
-                  background: d === selectedDay ? "color-mix(in srgb, var(--primary) 14%, transparent)" : "transparent",
-                  color: d === selectedDay ? "var(--primary)" : "var(--text)",
-                  fontWeight: d === selectedDay || d === today() ? 700 : 400,
-                }}
-              >
-                {Number(d.slice(8))}
-                <span className="dot" style={{ width: 6, height: 6, background: workoutDays.has(d) ? "var(--primary)" : "transparent" }} />
-              </button>
-            ) : (
-              <span key={`e${i}`} />
-            ),
-          )}
-        </div>
-      </Card>
-
-      <div className="stack-sm">
-        <h2 className="headline">{formatLong(selectedDay)}</h2>
-        {sessions.length === 0 ? (
-          <p className="sub">No workouts logged this day.</p>
-        ) : (
-          sessions.map((session) => (
-            <Card key={session.id} className="tight">
-              <div className="row-between">
-                <span className="headline">{session.templateName}</span>
-                <div className="row">
-                  <span className={`badge${session.completedAt ? " ok" : ""}`}>{session.completedAt ? "Done" : "Open"}</span>
-                  <button
-                    className="icon-btn"
-                    style={{ width: 32, height: 32, color: "var(--text-2)" }}
-                    aria-label="Delete workout"
-                    onClick={async () => {
-                      if (await confirmDialog({ title: "Delete this workout?", confirm: "Delete", destructive: true })) {
-                        actions.deleteWorkoutSession(session.id);
-                      }
-                    }}
-                  >
-                    <Icon name="trash" size={15} />
-                  </button>
-                </div>
-              </div>
-              <span className="caption">
-                {completedSets(session)} sets · {formatClock(sessionDurationSeconds(session))}
-              </span>
-              {session.exercises
-                .filter((e) => e.sets.length)
-                .map((e) => (
-                  <div key={e.id} className="row-between callout">
-                    <span>{e.name}</span>
-                    <span className="muted">{lastSetSummary(e)}</span>
-                  </div>
-                ))}
-            </Card>
-          ))
-        )}
-      </div>
 
       <div className="stack-sm">
         <h2 className="headline">Start a Workout</h2>
@@ -192,7 +93,16 @@ export function Workout() {
           }}
         />
       )}
-      {activeOpen && s.activeWorkout && <ActiveWorkout onClose={() => setActiveOpen(false)} />}
+      {activeOpen && s.activeWorkout && (
+        <ActiveWorkout
+          onClose={() => setActiveOpen(false)}
+          onFinished={(c) => {
+            setActiveOpen(false);
+            setCompletion(c);
+          }}
+        />
+      )}
+      {completion && <WorkoutComplete completion={completion} onDone={() => setCompletion(null)} />}
     </div>
   );
 }
@@ -273,7 +183,7 @@ function useWakeLock() {
   }, []);
 }
 
-function ActiveWorkout({ onClose }: { onClose: () => void }) {
+function ActiveWorkout({ onClose, onFinished }: { onClose: () => void; onFinished: (c: WorkoutCompletion) => void }) {
   const s = useApp();
   const session = s.activeWorkout!;
   useTick(1000);
@@ -298,9 +208,21 @@ function ActiveWorkout({ onClose }: { onClose: () => void }) {
 
   async function finish() {
     if (!(await confirmDialog({ title: "Finish workout?", confirm: "Save Workout" }))) return;
+    const before = getState();
+    const previous = lastCompletedSession(before, session.templateID);
+    const streakBefore = workoutStreak(before.profile.trainingDays, before.dayOverrides, before.workoutSessions);
     const stagnant = actions.finishActiveWorkout();
-    onClose();
-    if (stagnant.length === 0) toast("Workout saved");
+    // The review screen covers stagnation, so skip the separate "No Progress" dialog.
+    actions.acknowledgeStagnationAlerts();
+    const after = getState();
+    const saved = after.workoutSessions.find((w) => w.id === session.id);
+    if (!saved) {
+      onClose();
+      toast("Workout saved");
+      return;
+    }
+    const streakAfter = workoutStreak(after.profile.trainingDays, after.dayOverrides, after.workoutSessions);
+    onFinished({ session: saved, previous, streakBefore, streakAfter, stagnant });
   }
 
   async function discard() {

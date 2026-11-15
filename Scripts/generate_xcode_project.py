@@ -279,6 +279,12 @@ def main() -> None:
         ("MyCoach/Resources/Data/quotes.json", "text.json", "quotes.json"),
         ("MyCoach/Resources/Audio/calm.m4a", "file", "calm.m4a"),
     ]
+    click_dir = ROOT / "MyCoach/Resources/Audio/Clicks"
+    click_files = sorted(p.name for p in click_dir.glob("*.wav")) if click_dir.exists() else []
+    res_specs += [(f"MyCoach/Resources/Audio/Clicks/{n}", "audio.wav", n) for n in click_files]
+    effect_dir = ROOT / "MyCoach/Resources/Audio/Effects"
+    effect_files = sorted(p.name for p in effect_dir.glob("*.wav")) if effect_dir.exists() else []
+    res_specs += [(f"MyCoach/Resources/Audio/Effects/{n}", "audio.wav", n) for n in effect_files]
     for path, lkt, name in res_specs:
         fid = uid(f"file:{path}")
         file_entries.append(
@@ -315,6 +321,12 @@ def main() -> None:
         ],
         "MyCoach/Resources/Audio": [
             ("MyCoach/Resources/Audio/calm.m4a", "calm.m4a"),
+        ],
+        "MyCoach/Resources/Audio/Clicks": [
+            (f"MyCoach/Resources/Audio/Clicks/{n}", n) for n in click_files
+        ],
+        "MyCoach/Resources/Audio/Effects": [
+            (f"MyCoach/Resources/Audio/Effects/{n}", n) for n in effect_files
         ],
     }
 

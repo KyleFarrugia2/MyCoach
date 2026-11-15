@@ -61,21 +61,7 @@ struct CoachHomeView: View {
     private var statusCard: some View {
         MCCard {
             HStack(alignment: .top, spacing: MCTheme.Spacing.md) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [MCTheme.ColorToken.primary, MCTheme.ColorToken.navy],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                }
-                .accessibilityHidden(true)
+                MCCoachAvatar(size: 56)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(statusTitle)

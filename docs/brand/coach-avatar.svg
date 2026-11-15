@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="127 127 1000 1000" width="512" height="512">
+  <title>My Coach</title>
+  <defs>
+    <linearGradient id="c" x1="250" y1="1000" x2="1010" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0050ff"/>
+      <stop offset="0.55" stop-color="#0a7dff"/>
+      <stop offset="1" stop-color="#00f0ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1254" height="1254" fill="#020f35"/>
+  <path fill="url(#c)" d="M629 168 L1018 386 L890 460 L870 460 L628 326 L364 476 L362 780 L628 932 L875 783 L1003 783 L1003 840 L628 1070 L250 840 L250 385 Z"/>
+  <path fill="#ffffff" stroke="#020f35" stroke-width="16" stroke-linejoin="miter" paint-order="stroke"
+        d="M630 415 L888 583 L948 663 L628 540 L308 663 L368 580 Z"/>
+  <path fill="#00f0ff" d="M418 659 L555 708 L580 741 L457 706 Z M837 659 L798 706 L675 741 L700 708 Z"/>
+</svg>

@@ -12,10 +12,22 @@ struct ActiveWorkoutView: View {
     @State private var showDiscardConfirm = false
     @State private var showStagnationAlert = false
     @State private var stagnationMessage = ""
+    @State private var completion: WorkoutCompletion?
 
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
+        ZStack {
+            workoutStack
+            if let completion {
+                WorkoutCompleteFlow(completion: completion) { isPresented = false }
+                    .transition(.opacity.combined(with: .scale(scale: 1.04)))
+                    .zIndex(1)
+            }
+        }
+    }
+
+    private var workoutStack: some View {
         NavigationStack {
             Group {
                 if let session = env.activeWorkout {
@@ -244,13 +256,32 @@ struct ActiveWorkoutView: View {
     }
 
     private func finish() {
+        guard let session = env.activeWorkout else { return }
+        let previous = env.lastCompletedSession(for: session.templateID)
+        let streakBefore = workoutStreak()
         let stagnant = env.finishActiveWorkout()
-        if stagnant.isEmpty {
+        // The progress review screen covers stagnation, so skip the separate "No Progress" alert.
+        env.acknowledgeStagnationAlerts()
+        guard let saved = env.workoutSessions.first(where: { $0.id == session.id }) else {
             isPresented = false
-        } else {
-            let names = stagnant.joined(separator: ", ")
-            stagnationMessage = "No progress for 3 workouts in a row on: \(names)."
-            showStagnationAlert = true
+            return
         }
+        withAnimation(.easeOut(duration: 0.35)) {
+            completion = WorkoutCompletion(
+                session: saved,
+                previous: previous,
+                streakBefore: streakBefore,
+                streakAfter: workoutStreak(),
+                stagnant: stagnant
+            )
+        }
+    }
+
+    private func workoutStreak() -> Int {
+        WorkoutReview.streak(
+            trainingDays: env.profile.trainingSchedule.trainingDays,
+            overrides: env.dayOverrides,
+            sessions: env.workoutSessions
+        )
     }
 }

@@ -164,6 +164,21 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            Toggle(isOn: Binding(
+                get: { env.preferences.buttonSounds },
+                set: { value in
+                    env.preferences.buttonSounds = value
+                    env.save()
+                    env.syncButtonSounds()
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Sound effects")
+                    Text("Button sounds (the nav bar and each tab have their own) and the Workout Complete celebration.")
+                        .font(MCTheme.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         } header: {
             Text("Sound")
         }

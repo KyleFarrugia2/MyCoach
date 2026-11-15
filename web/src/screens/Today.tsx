@@ -23,7 +23,7 @@ import {
   useApp,
   weightEntryOn,
 } from "../state/store";
-import { Button, Card, DayTypeBadge, EmptyState, Icon, MacroMeta, NumberInput, Sheet, confirmDialog, toast } from "../ui/kit";
+import { Button, Card, DayTypeBadge, EmptyState, Icon, MacroMeta, NumberInput, Sheet, confirmDialog, toast, CoachAvatar } from "../ui/kit";
 import { Settings } from "./Settings";
 
 const MAX_DAYS_BACK = 60;
@@ -555,8 +555,13 @@ function MealsAndCoach() {
         </div>
       </Card>
       <Card>
-        <h3 className="headline">Coach</h3>
-        <p className="sub">{s.coachStatusMessage}</p>
+        <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
+          <CoachAvatar size={40} />
+          <div className="stack-sm grow" style={{ gap: 4 }}>
+            <h3 className="headline">Coach</h3>
+            <p className="sub">{s.coachStatusMessage}</p>
+          </div>
+        </div>
         <button className="link-btn" style={{ alignSelf: "flex-start" }} onClick={() => actions.selectTab("coach")}>
           {hasCoachAccess(s) ? "View Coach Analysis" : "Unlock Coach AI"}
         </button>

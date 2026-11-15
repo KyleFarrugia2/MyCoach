@@ -164,4 +164,15 @@ final class TodayFeaturesTests: XCTestCase {
         let prefs = try JSONDecoder().decode(UserPreferences.self, from: Data(legacy.utf8))
         XCTAssertTrue(prefs.calmingMusic, "Music defaults on for existing users")
     }
+
+    // MARK: - Button sounds (designated, not random)
+
+    func testEveryTabHasItsOwnDesignatedSound() {
+        let all: [MainTab] = [.today, .mealPlan, .log, .foods, .workout, .progress, .coach]
+        let sounds = all.map(ButtonSound.init(tab:))
+        XCTAssertEqual(Set(sounds).count, all.count, "each tab has a distinct sound")
+        XCTAssertFalse(sounds.contains(.nav), "the nav bar sound is reserved for the tab bar")
+        XCTAssertEqual(ButtonSound(tab: .workout), .workout)
+        XCTAssertEqual(ButtonSound.allCases.count, 9)
+    }
 }

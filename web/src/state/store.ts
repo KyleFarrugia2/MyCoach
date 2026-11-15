@@ -144,6 +144,7 @@ function defaultPreferences(): UserPreferences {
     },
     adaptiveAutoAdjust: true,
     calmingMusic: true,
+    buttonSounds: true,
   };
 }
 

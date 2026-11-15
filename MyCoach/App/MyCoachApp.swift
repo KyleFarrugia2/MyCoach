@@ -9,6 +9,10 @@ struct MyCoachApp: App {
             RootView()
                 .environment(environment)
                 .applyingAppearance(environment.profile.appearance)
+                .onAppear {
+                    environment.onButtonSoundsChange = { ButtonSounds.enabled = $0 }
+                    environment.syncButtonSounds()
+                }
         }
     }
 }

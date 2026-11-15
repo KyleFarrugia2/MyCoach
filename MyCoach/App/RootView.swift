@@ -10,6 +10,7 @@ struct RootView: View {
                 MainTabView()
             } else {
                 OnboardingFlowView()
+                    .buttonSound(.onboarding)
             }
         }
         .animation(MCTheme.Motion.standard, value: env.profile.hasCompletedOnboarding)

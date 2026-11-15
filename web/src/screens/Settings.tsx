@@ -260,6 +260,12 @@ export function Settings() {
           checked={s.preferences.calmingMusic}
           onChange={(v) => actions.updatePreferences({ calmingMusic: v })}
         />
+        <Toggle
+          label="Sound effects"
+          sub="Button sounds (the nav bar and each tab have their own) and the Workout Complete celebration."
+          checked={s.preferences.buttonSounds}
+          onChange={(v) => actions.updatePreferences({ buttonSounds: v })}
+        />
       </div>
 
       <p className="section-title">Appearance</p>

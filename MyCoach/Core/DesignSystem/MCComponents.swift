@@ -291,6 +291,23 @@ struct MCWeightEntryCard: View {
 
 // MARK: - Coach message
 
+/// The coach's profile picture — shown wherever the coach talks.
+struct MCCoachAvatar: View {
+    var size: CGFloat = 32
+
+    var body: some View {
+        Image("CoachAvatar")
+            .resizable()
+            .interpolation(.high)
+            .scaledToFill()
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(MCTheme.ColorToken.primary.opacity(0.45), lineWidth: 1.5))
+            .shadow(color: Color(red: 0, green: 0.31, blue: 1).opacity(0.25), radius: 5, y: 2)
+            .accessibilityHidden(true)
+    }
+}
+
 struct MCCoachMessage: View {
     let text: String
     var role: CoachChatMessage.Role = .coach
@@ -304,15 +321,7 @@ struct MCCoachMessage: View {
         HStack(alignment: .top, spacing: MCTheme.Spacing.sm) {
             if isUser { Spacer(minLength: 40) }
             if !isUser {
-                ZStack {
-                    Circle()
-                        .fill(MCTheme.ColorToken.primary.opacity(0.15))
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(MCTheme.ColorToken.primary)
-                }
-                .frame(width: 32, height: 32)
-                .accessibilityHidden(true)
+                MCCoachAvatar(size: 32)
             }
 
             VStack(alignment: .leading, spacing: MCTheme.Spacing.xs) {
@@ -428,7 +437,7 @@ struct MCMealCard: View {
                         .foregroundStyle(MCTheme.ColorToken.primary)
                     }
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(SoundButtonStyle())
             }
         }
     }
@@ -668,7 +677,7 @@ struct MCSelectableRow: View {
                     )
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoundPlainButtonStyle())
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }

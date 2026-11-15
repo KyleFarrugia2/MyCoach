@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { type MainTab, actions, useApp } from "./state/store";
 import { Icon, type IconName, OverlayHost } from "./ui/kit";
+import { setClickSoundsEnabled, setSoundContext } from "./ui/clickSounds";
 import { syncMusic } from "./ui/music";
 import { Coach } from "./screens/Coach";
 import { FoodLog } from "./screens/FoodLog";
@@ -46,6 +47,15 @@ export function App() {
   useEffect(() => {
     syncMusic(s.preferences.calmingMusic, !!s.activeWorkout);
   }, [s.preferences.calmingMusic, s.activeWorkout]);
+
+  useEffect(() => {
+    setClickSoundsEnabled(s.preferences.buttonSounds);
+  }, [s.preferences.buttonSounds]);
+
+  // Each tab has its own button sound; onboarding has one too.
+  useEffect(() => {
+    setSoundContext(s.profile.hasCompletedOnboarding ? s.selectedTab : "onboarding");
+  }, [s.profile.hasCompletedOnboarding, s.selectedTab]);
 
   useEffect(() => {
     window.scrollTo(0, 0);

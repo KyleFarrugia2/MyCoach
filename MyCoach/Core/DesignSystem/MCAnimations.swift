@@ -40,15 +40,26 @@ struct MCScreenEntrance: ViewModifier {
     }
 }
 
-/// Buttons and tappable cards press down slightly.
+/// Buttons and tappable cards press down slightly and play the screen's designated sound.
 struct MCPressStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     func makeBody(configuration: Configuration) -> some View {
+        MCPressBody(configuration: configuration)
+    }
+}
+
+private struct MCPressBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.buttonSound) private var sound
+
+    var body: some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.9 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { ButtonSounds.play(sound) }
+            }
     }
 }
 

@@ -587,9 +587,7 @@ export function CoachBubble({
   return (
     <div className={`bubble-row${isUser ? " user" : ""}`}>
       {!isUser && (
-        <span className="avatar">
-          <Icon name="dumbbell" size={16} />
-        </span>
+        <CoachAvatar size={32} />
       )}
       <div className="bubble">
         {text}
@@ -605,6 +603,20 @@ export function CoachBubble({
         )}
       </div>
     </div>
+  );
+}
+
+/** The coach's profile picture — shown wherever the coach talks. */
+export function CoachAvatar({ size = 32 }: { size?: number }) {
+  return (
+    <img
+      className="coach-avatar"
+      src={`${import.meta.env.BASE_URL}icons/coach-avatar.svg`}
+      width={size}
+      height={size}
+      alt="Coach"
+      draggable={false}
+    />
   );
 }
 

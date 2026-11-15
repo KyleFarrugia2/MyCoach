@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CoachingConfig } from "../core/config";
 import { formatMedium } from "../core/dates";
 import { actions, currentWeek, hasCoachAccess, useApp } from "../state/store";
-import { Button, Card, CoachBubble, Icon, SectionHeader, Sheet } from "../ui/kit";
+import { Button, Card, CoachBubble, Icon, SectionHeader, Sheet, CoachAvatar } from "../ui/kit";
 import { CheckIn } from "./CheckIn";
 import { ModelCard } from "./ModelCard";
 import { Paywall } from "./Paywall";
@@ -46,12 +46,7 @@ export function Coach() {
 
       <Card>
         <div className="row" style={{ alignItems: "flex-start", gap: 14 }}>
-          <span
-            className="avatar"
-            style={{ width: 52, height: 52, background: "linear-gradient(135deg, var(--primary), var(--navy))", color: "#fff" }}
-          >
-            <Icon name="dumbbell" size={24} />
-          </span>
+          <CoachAvatar size={52} />
           <div className="stack-sm grow">
             <h3 className="headline">{statusTitle}</h3>
             <p className="sub">{s.coachStatusMessage}</p>

@@ -165,7 +165,7 @@ struct WeeklyCheckInFlowView: View {
                             )
                             .foregroundStyle(value.wrappedValue == n ? .white : MCTheme.Surface.primaryText(colorScheme))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(SoundPlainButtonStyle())
                     .accessibilityLabel("\(n)")
                 }
             }

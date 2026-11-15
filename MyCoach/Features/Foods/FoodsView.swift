@@ -126,7 +126,7 @@ struct FoodsView: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SoundPlainButtonStyle())
     }
 }
 

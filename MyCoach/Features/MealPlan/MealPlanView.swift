@@ -113,7 +113,7 @@ struct MealPlanView: View {
                             .fill(selected ? MCTheme.ColorToken.primary.opacity(0.12) : .clear)
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SoundPlainButtonStyle())
                 .accessibilityLabel(weekday.fullLabel)
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
