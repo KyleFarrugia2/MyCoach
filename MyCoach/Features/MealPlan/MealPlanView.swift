@@ -20,7 +20,7 @@ struct MealPlanView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: MCTheme.Spacing.md) {
+                VStack(alignment: .leading, spacing: MCTheme.Spacing.md) {
                     header
                     daySelector
                     if let plan {
@@ -40,6 +40,7 @@ struct MealPlanView: View {
                         }
                     }
                 }
+                .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
                 .padding(.vertical, MCTheme.Spacing.md)
             }
             .mcScreenBackground()
@@ -81,154 +82,246 @@ struct MealPlanView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Built around your targets and the foods you enjoy.")
-                .font(MCTheme.Typography.subheadline)
-                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
-                .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        Text("Built around your targets and the foods you enjoy.")
+            .font(MCTheme.Typography.subheadline)
+            .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var daySelector: some View {
-        HStack(spacing: 6) {
-            ForEach(weekDates, id: \.self) { date in
-                let weekday = env.weekday(for: date)
-                let selected = Calendar.current.isDate(date, inSameDayAs: selectedDate)
-                Button {
-                    selectedDate = date
-                } label: {
-                    VStack(spacing: 4) {
-                        Text(weekday.shortLabel)
-                            .font(MCTheme.Typography.caption)
-                        Circle()
-                            .fill(selected ? MCTheme.ColorToken.primary : .clear)
-                            .frame(width: 8, height: 8)
-                    }
-                    .foregroundStyle(selected ? MCTheme.ColorToken.primary : MCTheme.Surface.secondaryText(colorScheme))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: MCTheme.Radius.sm, style: .continuous)
-                            .fill(selected ? MCTheme.ColorToken.primary.opacity(0.12) : .clear)
-                    )
-                }
-                .buttonStyle(SoundPlainButtonStyle())
-                .accessibilityLabel(weekday.fullLabel)
-                .accessibilityAddTraits(selected ? .isSelected : [])
+        MCWeekStrip(
+            days: weekDates,
+            selected: $selectedDate,
+            mark: { day in
+                let planned = env.mealPlanDays[Calendar.current.startOfDay(for: day)]?.isTrainingDay
+                return (planned ?? env.isTrainingDay(on: day)) ? .training : .rest
             }
-        }
-        .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
+        )
     }
 
     @ViewBuilder
     private func planContent(_ plan: MealPlanDay) -> some View {
-        VStack(spacing: MCTheme.Spacing.md) {
-            HStack {
-                MCDayTypeBadge(isTrainingDay: plan.isTrainingDay)
-                Spacer()
-                Text(plan.localDate, format: .dateTime.weekday(.wide).month().day())
-                    .font(MCTheme.Typography.caption)
-                    .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+        MCBrief(tint: plan.isTrainingDay ? .training : .rest) {
+            VStack(alignment: .leading, spacing: 4) {
+                MCEyebrow(plan.localDate.formatted(.dateTime.weekday(.wide).day().month(.wide)), onInk: true)
+                Label(plan.isTrainingDay ? "Training Day" : "Rest Day", systemImage: plan.isTrainingDay ? "dumbbell.fill" : "sun.max.fill")
+                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .accessibilityAddTraits(.isHeader)
             }
-            .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
+            MCFuel(
+                calories: plan.totalCalories,
+                target: Double(plan.target.calories),
+                macros: plan.totalMacros,
+                targetMacros: plan.target.macros,
+                mode: .plan
+            )
+        }
 
-            MCCard {
-                VStack(spacing: MCTheme.Spacing.sm) {
-                    HStack {
-                        Text("\(plan.target.calories) kcal")
-                            .font(MCTheme.Typography.numericMedium)
-                            .foregroundStyle(MCTheme.ColorToken.calories)
-                        Spacer()
-                        Text("Plan \(Int(plan.totalCalories.rounded()))")
-                            .font(MCTheme.Typography.caption)
-                            .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+        if let message = plan.solverMessage {
+            Text(message)
+                .font(MCTheme.Typography.caption)
+                .foregroundStyle(MCTheme.ColorToken.warning)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        MCSection(label: "\(plan.meals.count) meals") {
+            MCSectionCount(text: "Weigh everything raw")
+        } content: {
+            VStack(spacing: 0) {
+                ForEach(Array(plan.meals.enumerated()), id: \.element.id) { index, meal in
+                    MCRailItem(number: index + 1, isLast: index == plan.meals.count - 1) {
+                        mealCard(meal)
                     }
-                    MCMacroBar(kind: .protein, current: plan.totalMacros.protein, target: plan.target.macros.protein)
-                    MCMacroBar(kind: .carbohydrates, current: plan.totalMacros.carbohydrates, target: plan.target.macros.carbohydrates)
-                    MCMacroBar(kind: .fat, current: plan.totalMacros.fat, target: plan.target.macros.fat)
                 }
             }
-            .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
+        }
 
-            if let message = plan.solverMessage {
-                Text(message)
-                    .font(MCTheme.Typography.caption)
-                    .foregroundStyle(MCTheme.ColorToken.warning)
-                    .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
-            }
-
-            ForEach(plan.meals) { meal in
-                MCMealCard(
-                    meal: meal,
-                    onSwap: { item in
-                        swapItem = item
-                        showFoodPicker = true
-                    },
-                    onToggleLock: { item in
-                        env.toggleLock(itemID: item.id, on: selectedDate)
-                    },
-                    onLogMeal: {
-                        env.logPlannedMeal(meal, on: selectedDate)
-                    },
-                    onSwapMeal: env.hasCoachAccess ? {
-                        env.swapMeal(mealID: meal.id, on: selectedDate)
-                    } : nil
-                )
-                .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
-            }
-
-            if plan.isTrainingDay {
+        if plan.isTrainingDay {
+            MCSection(label: "Around training") {
                 intraCard
-                    .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
             }
+        }
 
-            MCCard {
-                VStack(alignment: .leading, spacing: MCTheme.Spacing.sm) {
+        VStack(alignment: .leading, spacing: MCTheme.Spacing.sm) {
+            Divider()
+            HStack(alignment: .center, spacing: MCTheme.Spacing.sm) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Can't Follow The Plan Today?")
                         .font(MCTheme.Typography.headline)
+                        .foregroundStyle(MCTheme.Surface.primaryText(colorScheme))
                     Text("You don't need your exact meal plan today. Aim to stay near your targets.")
                         .font(MCTheme.Typography.subheadline)
                         .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
-                    MCSecondaryButton(title: "Track Freely Instead") {
-                        env.selectedTab = .log
-                    }
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    env.selectedTab = .log
+                } label: {
+                    Text("Track Freely Instead")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(MCTheme.ColorToken.primary)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 36)
+                        .background(Capsule().fill(MCTheme.Surface.secondaryFill(colorScheme)))
+                }
+                .buttonStyle(MCPressStyle())
+                .fixedSize()
+            }
+        }
+        .padding(.bottom, MCTheme.Spacing.lg)
+    }
+
+    private func mealCard(_ meal: Meal) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(meal.name)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(MCTheme.Surface.primaryText(colorScheme))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let time = meal.timeLabel {
+                    Text(time)
+                        .font(.system(size: 12, weight: .bold).monospacedDigit())
+                        .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+                }
+                Spacer(minLength: 8)
+                Text("\(Int(meal.totalCalories.rounded()))")
+                    .font(.system(size: 16, weight: .heavy, design: .rounded).monospacedDigit())
+                    .foregroundStyle(MCTheme.ColorToken.primary)
+                Text("kcal")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+            }
+            MCMacroChips(macros: meal.totalMacros)
+            VStack(spacing: 0) {
+                ForEach(meal.items) { item in
+                    Divider()
+                    itemRow(item)
                 }
             }
-            .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
+            Divider()
+            HStack {
+                MCTintButton(title: "Log meal", systemImage: "checkmark") {
+                    env.logPlannedMeal(meal, on: selectedDate)
+                }
+                Spacer(minLength: 8)
+                if env.hasCoachAccess {
+                    Button {
+                        env.swapMeal(mealID: meal.id, on: selectedDate)
+                    } label: {
+                        Label("Swap meal", systemImage: "arrow.left.arrow.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(MCTheme.ColorToken.primary)
+                    }
+                    .buttonStyle(MCPressStyle())
+                }
+            }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .mcSurface()
+    }
+
+    /// How much to weigh, split from what it is, so the scale number leads each row.
+    private func split(_ item: MealItem) -> (quantity: String, name: String, state: String?) {
+        if let grams = item.grams {
+            let rounded = (grams * 10).rounded() / 10
+            let state: String?
+            switch item.food.measurementState {
+            case .raw, .dry, .cooked: state = item.food.measurementState.displayName
+            default: state = nil
+            }
+            return ("\(rounded.formatted(.number.precision(.fractionLength(0...1)))) g", item.food.name, state)
+        }
+        if let servings = item.servings {
+            return ("\(servings.formatted(.number.precision(.fractionLength(0...2)))) ×", item.food.servingDescription, nil)
+        }
+        return ("", item.food.name, nil)
+    }
+
+    private func itemRow(_ item: MealItem) -> some View {
+        let parts = split(item)
+        // Supplements (e.g. intra-workout) can't be swapped or locked.
+        let fixed = MealPlanner.spec(for: item.food).role == .supplement
+        return HStack(alignment: .center, spacing: 10) {
+            Text(parts.quantity)
+                .font(.system(size: 15, weight: .heavy, design: .rounded).monospacedDigit())
+                .foregroundStyle(MCTheme.ColorToken.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(width: 54, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(parts.name)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(MCTheme.Surface.primaryText(colorScheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let state = parts.state {
+                        Text(state.uppercased())
+                            .font(.system(size: 9.5, weight: .heavy))
+                            .tracking(0.7)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(MCTheme.ColorToken.primary.opacity(0.13)))
+                            .foregroundStyle(MCTheme.ColorToken.primary)
+                    }
+                }
+                Text("\(Int(item.calories.rounded())) kcal · P \(Int(item.macros.protein.rounded())) · C \(Int(item.macros.carbohydrates.rounded())) · F \(Int(item.macros.fat.rounded()))")
+                    .font(MCTheme.Typography.caption2)
+                    .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+            }
+            Spacer(minLength: 4)
+            if !fixed {
+                MCToolButton(
+                    systemImage: item.isLocked ? "lock.fill" : "lock.open",
+                    active: item.isLocked,
+                    label: item.isLocked ? "Unlock \(item.food.name)" : "Lock \(item.food.name)"
+                ) {
+                    env.toggleLock(itemID: item.id, on: selectedDate)
+                }
+                MCToolButton(systemImage: "arrow.left.arrow.right", label: "Swap \(item.food.name)") {
+                    swapItem = item
+                    showFoodPicker = true
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .accessibilityElement(children: .contain)
     }
 
     private var intraCard: some View {
-        MCCard {
-            VStack(alignment: .leading, spacing: MCTheme.Spacing.sm) {
-                HStack {
-                    Text("Intra in Pre Workout Meal")
-                        .font(MCTheme.Typography.headline)
-                    Spacer()
-                    Toggle("", isOn: Binding(
-                        get: { env.profile.intraWorkoutEnabled },
-                        set: { env.setIntraWorkoutEnabled($0) }
-                    ))
-                    .labelsHidden()
-                }
-                Text("When on, dextrose and EAAs are included in Pre Workout / Intra Workout. They count toward your daily macros.")
-                    .font(MCTheme.Typography.caption)
+        VStack(alignment: .leading, spacing: MCTheme.Spacing.sm) {
+            HStack {
+                Text("Intra in Pre Workout Meal")
+                    .font(MCTheme.Typography.headline)
+                    .foregroundStyle(MCTheme.Surface.primaryText(colorScheme))
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { env.profile.intraWorkoutEnabled },
+                    set: { env.setIntraWorkoutEnabled($0) }
+                ))
+                .labelsHidden()
+            }
+            Text("When on, dextrose and EAAs are included in Pre Workout / Intra Workout. They count toward your daily macros.")
+                .font(MCTheme.Typography.caption)
+                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+            if env.profile.intraWorkoutEnabled {
+                let intra = NutritionEngine().intraWorkoutTargets(
+                    weightKg: env.profile.currentWeightKg,
+                    goal: env.profile.goalPhase
+                )
+                Text("EAAs: \(Int(intra.eaaGrams)) g · Dextrose: \(Int(intra.dextroseGrams)) g · Water: \(intra.waterMillilitersRange.lowerBound)–\(intra.waterMillilitersRange.upperBound) mL")
+                    .font(MCTheme.Typography.callout)
+                    .foregroundStyle(MCTheme.ColorToken.primary)
+                Text("Highly recommended for users prioritising gym performance — entirely optional.")
+                    .font(MCTheme.Typography.caption2)
                     .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
-                if env.profile.intraWorkoutEnabled {
-                    let intra = NutritionEngine().intraWorkoutTargets(
-                        weightKg: env.profile.currentWeightKg,
-                        goal: env.profile.goalPhase
-                    )
-                    Text("EAAs: \(Int(intra.eaaGrams)) g · Dextrose: \(Int(intra.dextroseGrams)) g · Water: \(intra.waterMillilitersRange.lowerBound)–\(intra.waterMillilitersRange.upperBound) mL")
-                        .font(MCTheme.Typography.callout)
-                        .foregroundStyle(MCTheme.ColorToken.primary)
-                    Text("Highly recommended for users prioritising gym performance — entirely optional.")
-                        .font(MCTheme.Typography.caption2)
-                        .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
-                }
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .mcSurface()
     }
 
     private func generate() {

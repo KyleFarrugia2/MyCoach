@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { AppIdentity, CoachingConfig } from "../core/config";
+import { CoachingConfig } from "../core/config";
 import { type Day, addDays, formatLong, fromDay, today } from "../core/dates";
-import { WeightUnitShort, mealSlots } from "../core/models";
+import { Macros, WeightUnitShort, mealSlots } from "../core/models";
 import { cardioRecommendation, fmtHours } from "../engines/cardio";
 import { type Quote, loadQuotes, quoteIndexFor } from "../engines/quotes";
 import { UnitConversion, parseDecimal, parseHours } from "../engines/units";
@@ -23,7 +23,8 @@ import {
   useApp,
   weightEntryOn,
 } from "../state/store";
-import { Button, Card, DayTypeBadge, EmptyState, Icon, MacroMeta, NumberInput, Sheet, confirmDialog, toast, CoachAvatar } from "../ui/kit";
+import { Brief, Eyebrow, Fuel, Hex, Section, WeekStrip } from "../ui/brief";
+import { Button, CoachAvatar, Icon, type IconName, NumberInput, Sheet, confirmDialog, toast } from "../ui/kit";
 import { Settings } from "./Settings";
 
 const MAX_DAYS_BACK = 60;
@@ -34,7 +35,16 @@ function dayLabel(day: Day): string {
   return fromDay(day).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 }
 
-const shortWeekday = (day: Day) => fromDay(day).toLocaleDateString(undefined, { weekday: "long" });
+const longWeekday = (day: Day) => fromDay(day).toLocaleDateString(undefined, { weekday: "long" });
+const shortWeekday = (day: Day) => fromDay(day).toLocaleDateString(undefined, { weekday: "short" });
+const daysBetween = (later: Day, earlier: Day) => Math.round((fromDay(later).getTime() - fromDay(earlier).getTime()) / 86_400_000);
+
+/** The seven days (oldest first) of the page that contains `day`; page 0 ends today. */
+function weekWindow(day: Day): Day[] {
+  const page = Math.floor(Math.max(daysBetween(today(), day), 0) / 7);
+  const end = addDays(today(), -7 * page);
+  return Array.from({ length: 7 }, (_, i) => addDays(end, i - 6));
+}
 
 export function Today() {
   const s = useApp();
@@ -42,57 +52,54 @@ export function Today() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const isToday = day === today();
   const oldest = addDays(today(), -MAX_DAYS_BACK);
+  const days = weekWindow(day);
 
   return (
-    <div className="screen">
-      <div className="screen-header">
-        <h1 className="screen-title">{AppIdentity.displayName}</h1>
+    <div className="screen today">
+      <header className="masthead">
+        <div className="masthead-text">
+          <Eyebrow>{formatLong(today())}</Eyebrow>
+          <h1 className="masthead-title">{greeting(s)}</h1>
+        </div>
         <button className="icon-btn" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
           <Icon name="gear" />
         </button>
-      </div>
+      </header>
 
-      <div className="stack-sm">
-        <h2 className="title">{greeting(s)}</h2>
-        <span className="sub">{formatLong(today())}</span>
-      </div>
-
-      <QuoteCard />
+      <QuoteLine />
 
       {/* Day navigator — look back and catch up on missed days */}
-      <div className="card row-between day-nav" style={{ flexDirection: "row", padding: "6px 8px" }}>
-        <button className="icon-btn" aria-label="Previous day" disabled={day <= oldest} onClick={() => setDay(addDays(day, -1))}>
-          <Icon name="chevronLeft" />
-        </button>
-        <div className="stack-sm center" style={{ gap: 0 }}>
-          <span className="headline">{dayLabel(day)}</span>
-          {!isToday && (
-            <button className="link-btn" style={{ padding: 0, fontSize: 13 }} onClick={() => setDay(today())}>
+      <div className="stack-sm">
+        <WeekStrip
+          days={days}
+          selected={day}
+          today={today()}
+          onSelect={setDay}
+          isDisabled={(d) => d < oldest}
+          marker={(d) => (isTrainingDay(s, d) ? "training" : "rest")}
+          onPrev={() => setDay(addDays(day, -7) < oldest ? oldest : addDays(day, -7))}
+          onNext={() => setDay(addDays(day, 7) > today() ? today() : addDays(day, 7))}
+          prevDisabled={days[0] <= oldest}
+          nextDisabled={days[6] === today()}
+        />
+        {!isToday && (
+          <div className="catchup">
+            <Icon name="calendar" size={16} />
+            <span className="grow">
+              Catching up on <strong>{dayLabel(day)}</strong> — what you log here is saved to that day and used by your coach.
+            </span>
+            <button className="link-btn" onClick={() => setDay(today())}>
               Back to today
             </button>
-          )}
-        </div>
-        <button className="icon-btn" aria-label="Next day" disabled={isToday} onClick={() => setDay(addDays(day, 1))}>
-          <Icon name="chevronRight" />
-        </button>
+          </div>
+        )}
       </div>
-      {!isToday && (
-        <div className="banner">
-          <Icon name="calendar" size={18} />
-          <span>Catching up on {dayLabel(day)} — anything you log here is saved to that day and used by your coach.</span>
-        </div>
-      )}
 
-      <DayTypeCard day={day} />
+      <PlanBrief day={day} />
       <SleepAdvice day={day} />
-      <WeightCard key={`w-${day}`} day={day} />
-      <SleepCard key={`s-${day}`} day={day} />
-      <TargetsCard day={day} />
-      {isToday && <CardioCard />}
-      <StepsCard day={day} />
-      <RecentDays selected={day} onSelect={setDay} />
-
-      {isToday && <MealsAndCoach />}
+      <CheckIn key={day} day={day} />
+      {isToday && <CoachThread />}
+      <WeekBoard days={days} selected={day} onSelect={setDay} />
 
       {settingsOpen && (
         <Sheet title="Settings" full onClose={() => setSettingsOpen(false)}>
@@ -104,8 +111,10 @@ export function Today() {
 }
 
 // ---------------------------------------------------------------------------
+// Masthead quote
+// ---------------------------------------------------------------------------
 
-function QuoteCard() {
+function QuoteLine() {
   const [quote, setQuote] = useState<Quote>();
   useEffect(() => {
     let alive = true;
@@ -118,23 +127,28 @@ function QuoteCard() {
   }, []);
   if (!quote) return null;
   return (
-    <section className="card quote-card" aria-label="Quote of the day">
-      <span className="caption row" style={{ gap: 6 }}>
-        <Icon name="sparkle" size={14} /> Quote of the day
-      </span>
+    <figure className="quote-line" aria-label="Quote of the day">
       <blockquote className="quote-text">“{quote.t}”</blockquote>
-      <span className="caption">— {quote.a}</span>
-    </section>
+      <figcaption>{quote.a}</figcaption>
+    </figure>
   );
 }
 
-function DayTypeCard({ day }: { day: Day }) {
+// ---------------------------------------------------------------------------
+// The day's brief: training / rest, fuel, and what to do
+// ---------------------------------------------------------------------------
+
+function PlanBrief({ day }: { day: Day }) {
   const s = useApp();
   const training = isTrainingDay(s, day);
   const override = overrideOn(s, day);
   const isToday = day === today();
   const sessionThatDay = s.workoutSessions.find((w) => w.localDate === day && w.completedAt);
   const nextWorkout = TemplateName[nextWorkoutTemplate(s)];
+  const target = targetFor(s, day);
+  const diary = diaryFor(s, day);
+  const eaten = diary.entries.reduce((sum, e) => sum + e.loggedCalories, 0);
+  const eatenMacros = Macros.sum(diary.entries.map((e) => e.loggedMacros));
 
   async function takeRest() {
     const ok = await confirmDialog({
@@ -145,49 +159,73 @@ function DayTypeCard({ day }: { day: Day }) {
     });
     if (!ok) return;
     const { movedTo } = actions.takeEmergencyRestDay(day);
-    toast(movedTo ? `Rest day taken — session moved to ${shortWeekday(movedTo)}` : "Rest day taken");
+    toast(movedTo ? `Rest day taken — session moved to ${longWeekday(movedTo)}` : "Rest day taken");
   }
 
-  return (
-    <section className={`card day-type ${training ? "is-training" : "is-rest"}`}>
-      <div className="row-between">
-        <div className="stack-sm" style={{ gap: 2 }}>
-          <span className="caption">{isToday ? "Today's plan" : `${dayLabel(day)}'s plan`}</span>
-          <span className="title2 row" style={{ gap: 8 }}>
-            <Icon name={training ? "dumbbell" : "sun"} />
-            {training ? "Training Day" : "Rest Day"}
-          </span>
-        </div>
-        <DayTypeBadge training={training} />
-      </div>
+  let note: string;
+  if (sessionThatDay) note = `${sessionThatDay.templateName} completed.`;
+  else if (training && isToday) {
+    note =
+      override?.reason === "movedSession" && override.linkedDay
+        ? `${nextWorkout} is on the plan — moved here from ${longWeekday(override.linkedDay)}.`
+        : `${nextWorkout} is on the plan.`;
+  } else if (training) note = "A training day with training-day calories.";
+  else if (override?.reason === "emergencyRest") {
+    note = `Emergency rest day${override.linkedDay ? ` — session moved to ${longWeekday(override.linkedDay)}` : ""}. Rest-day calories apply.`;
+  } else note = "Recover, hit your steps and eat to your rest-day targets.";
 
-      {training && isToday && !sessionThatDay && (
-        <span className="sub">
-          On the plan: <strong>{nextWorkout}</strong>
-          {override?.reason === "movedSession" && override.linkedDay ? ` · moved here from ${shortWeekday(override.linkedDay)}` : ""}
-        </span>
+  return (
+    <Brief className={`day-type ${training ? "is-training" : "is-rest"}`} label={isToday ? "Today's plan" : `${dayLabel(day)}'s plan`}>
+      <div className="brief-head">
+        <div className="stack-sm" style={{ gap: 4 }}>
+          <Eyebrow>{isToday ? "Today's plan" : `${dayLabel(day)}'s plan`}</Eyebrow>
+          <h2 className="brief-title">
+            <Icon name={training ? "dumbbell" : "sun"} size={22} />
+            {training ? "Training Day" : "Rest Day"}
+          </h2>
+        </div>
+        <div className="brief-tags">
+          {sessionThatDay && (
+            <span className="brief-tag ok">
+              <Icon name="check" size={13} /> Done
+            </span>
+          )}
+          {target?.source === "adaptiveModel" && <span className="brief-tag">Personalised</span>}
+        </div>
+      </div>
+      <p className="brief-note">{note}</p>
+
+      {target ? (
+        <Fuel calories={eaten} target={target.calories} macros={eatenMacros} targetMacros={target.macros} />
+      ) : (
+        <div className="brief-empty">
+          <strong>No plan yet</strong>
+          <span>Your coach hasn't built today's nutrition targets.</span>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => {
+              actions.rebuildTargetsFromProfile();
+              actions.generateMealPlan(day);
+            }}
+          >
+            Generate Meal Plan
+          </button>
+        </div>
       )}
-      {sessionThatDay && <span className="sub success">✓ {sessionThatDay.templateName} completed</span>}
-      {!training && override?.reason === "emergencyRest" && (
-        <span className="sub">
-          Emergency rest day{override.linkedDay ? ` — session moved to ${shortWeekday(override.linkedDay)}` : ""}. Rest-day calories apply.
-        </span>
-      )}
-      {!training && !override && <span className="sub">Recover, hit your steps and eat to your rest-day targets.</span>}
 
       {isToday && training && !sessionThatDay && (
-        <div className="row" style={{ gap: 8 }}>
+        <div className="brief-actions">
           <button className="btn btn-primary btn-sm grow" onClick={() => actions.startWorkout(nextWorkoutTemplate(s))}>
             Start {nextWorkout}
           </button>
-          <button className="btn btn-secondary btn-sm grow" onClick={takeRest}>
+          <button className="btn btn-ghost btn-sm" onClick={takeRest}>
             Emergency rest day
           </button>
         </div>
       )}
       {isToday && override?.reason === "emergencyRest" && (
         <button
-          className="link-btn"
+          className="btn btn-ghost btn-sm"
           style={{ alignSelf: "flex-start" }}
           onClick={() => {
             actions.undoEmergencyRestDay(day);
@@ -197,7 +235,7 @@ function DayTypeCard({ day }: { day: Day }) {
           Undo rest day
         </button>
       )}
-    </section>
+    </Brief>
   );
 }
 
@@ -207,19 +245,19 @@ function SleepAdvice({ day }: { day: Day }) {
   const sleep = sleepOn(s, day);
   if (dismissed || day !== today() || !sleep || sleep.hours > 5 || !isTrainingDay(s, day)) return null;
   return (
-    <div className="banner warn advice">
-      <Icon name="warning" size={18} />
-      <div className="stack-sm grow">
+    <div className="coach-thread advice">
+      <CoachAvatar size={36} />
+      <div className="coach-msg warn">
         <span>
           <strong>You slept {fmtHours(sleep.hours)}.</strong> With 5 hours or less, your coach recommends taking today as a rest
           day — training on that little sleep raises injury risk and slows recovery.
         </span>
-        <div className="row" style={{ gap: 8 }}>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => {
               const { movedTo } = actions.takeEmergencyRestDay(day);
-              toast(movedTo ? `Rest day taken — session moved to ${shortWeekday(movedTo)}` : "Rest day taken");
+              toast(movedTo ? `Rest day taken — session moved to ${longWeekday(movedTo)}` : "Rest day taken");
             }}
           >
             Make it a rest day
@@ -233,182 +271,287 @@ function SleepAdvice({ day }: { day: Day }) {
   );
 }
 
-function WeightCard({ day }: { day: Day }) {
-  const s = useApp();
-  const entry = weightEntryOn(s, day);
-  const isToday = day === today();
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState(() =>
-    entry ? UnitConversion.displayWeight(entry.weightKg, s.profile.weightUnit).toFixed(1) : isToday ? UnitConversion.displayWeight(s.profile.currentWeightKg, s.profile.weightUnit).toFixed(1) : "",
-  );
-  const parsed = parseDecimal(text);
-  const showInput = !entry || editing;
+// ---------------------------------------------------------------------------
+// Check-in: weight, sleep, steps, meals
+// ---------------------------------------------------------------------------
 
-  function save() {
-    if (parsed === undefined || parsed <= 0) return;
-    actions.logMorningWeight(parsed, s.profile.weightUnit, day);
-    setEditing(false);
-    toast(isToday ? "Morning weight logged" : `Weight saved for ${dayLabel(day)}`);
-  }
-
+function Tile({
+  icon,
+  label,
+  done,
+  flag,
+  value,
+  unit,
+  prompt,
+  note,
+  tone = "primary",
+  onClick,
+  ariaLabel,
+  children,
+}: {
+  icon: IconName;
+  label: string;
+  done: boolean;
+  /** Small amber tag, e.g. "Missing" on a past day. */
+  flag?: string;
+  value?: string;
+  unit?: string;
+  /** Shown instead of the value when nothing is logged yet. */
+  prompt: string;
+  note?: string;
+  tone?: "primary" | "warning";
+  onClick: () => void;
+  ariaLabel: string;
+  children?: React.ReactNode;
+}) {
   return (
-    <Card>
-      <div className="row-between">
-        <h3 className="headline">Morning Weight</h3>
-        {entry ? (
-          <span className="row caption success">
-            <Icon name="check" size={14} /> Logged
+    <button className={`tile${done ? " done" : " todo"}`} onClick={onClick} aria-label={ariaLabel}>
+      <span className="tile-head">
+        <Hex icon={icon} tone={done ? (tone === "warning" ? "warning" : "primary") : "muted"} size={30} />
+        <span className="tile-label">{label}</span>
+        {done ? (
+          <span className="tile-state ok">
+            <Icon name="check" size={13} />
           </span>
+        ) : flag ? (
+          <span className="tile-state flag">{flag}</span>
         ) : (
-          !isToday && <span className="badge warn">Missing</span>
+          <span className="tile-state add">
+            <Icon name="plus" size={13} />
+          </span>
         )}
-      </div>
-      {showInput ? (
-        <div className="input-unit">
-          <NumberInput big value={text} onChange={setText} placeholder="0.0" ariaLabel={`Morning weight for ${dayLabel(day)}`} />
-          <span className="unit">{WeightUnitShort[s.profile.weightUnit]}</span>
-        </div>
+      </span>
+      {value !== undefined ? (
+        <span className={`tile-value pop-in${tone === "warning" ? " warning" : ""}`}>
+          {value}
+          {unit && <small> {unit}</small>}
+        </span>
       ) : (
-        <span className="num-lg accent pop-in">{displayWeight(s, entry!.weightKg)}</span>
+        <span className="tile-prompt">{prompt}</span>
       )}
-      {isToday && <p className="caption">For the most consistent readings, weigh yourself under similar morning conditions.</p>}
-      {showInput ? (
-        <Button onClick={save} disabled={parsed === undefined || parsed <= 0}>
-          {entry ? "Save Weight" : "Log Weight"}
-        </Button>
-      ) : (
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setText(UnitConversion.displayWeight(entry!.weightKg, s.profile.weightUnit).toFixed(1));
-            setEditing(true);
-          }}
-        >
-          Edit Weight
-        </Button>
-      )}
-    </Card>
+      {children}
+      {note && <span className="tile-note">{note}</span>}
+    </button>
   );
 }
 
-function SleepCard({ day }: { day: Day }) {
+function CheckIn({ day }: { day: Day }) {
+  const s = useApp();
+  const isToday = day === today();
+  const [sheet, setSheet] = useState<"weight" | "sleep" | "steps" | null>(null);
+
+  const weight = weightEntryOn(s, day);
+  const sleep = sleepOn(s, day);
+  const steps = stepsOn(s, day)?.steps;
+  const stepTarget = targetFor(s, day)?.stepTarget ?? s.profile.stepTarget;
+  const unit = s.profile.weightUnit;
+
+  // Change since the previous weigh-in.
+  const previous = s.weightEntries
+    .filter((e) => e.isOfficialMorningCheckIn && e.localDate < day)
+    .sort((a, b) => b.localDate.localeCompare(a.localDate))[0];
+  let weightNote: string | undefined;
+  if (weight && previous) {
+    const delta = UnitConversion.displayWeight(weight.weightKg, unit) - UnitConversion.displayWeight(previous.weightKg, unit);
+    const rounded = Math.round(delta * 10) / 10;
+    weightNote =
+      rounded === 0
+        ? `Same as ${shortWeekday(previous.localDate)}`
+        : `${rounded > 0 ? "▲" : "▼"} ${Math.abs(rounded).toFixed(1)} ${WeightUnitShort[unit]} since ${shortWeekday(previous.localDate)}`;
+  } else if (weight) weightNote = "First weigh-in";
+  else if (isToday) weightNote = "Morning, before eating";
+
+  // Meals logged (today only).
+  const target = targetFor(s, day);
+  const slots = mealSlots(target?.isTrainingDay ?? isTrainingDay(s, day));
+  const logged = new Set(diaryFor(s, day).entries.map((e) => e.mealSlot));
+  const mealsDone = slots.filter((slot) => logged.has(slot) || (slot === "preWorkout" && logged.has("intraWorkout"))).length;
+  const mealsTotal = Math.max(s.mealPlanDays[day]?.meals.length ?? slots.length, CoachingConfig.requiredMealCount);
+
+  const doneCount = [weight, sleep, steps !== undefined].filter(Boolean).length;
+
+  return (
+    <Section
+      label={isToday ? "Check-in" : `${dayLabel(day)}'s check-in`}
+      aside={<span className={`section-count${doneCount === 3 ? " ok" : ""}`}>{doneCount} of 3 logged</span>}
+    >
+      <div className="tiles">
+        <Tile
+          icon="scale"
+          label="Weight"
+          done={!!weight}
+          flag={!isToday ? "Missing" : undefined}
+          value={weight ? UnitConversion.displayWeight(weight.weightKg, unit).toFixed(1) : undefined}
+          unit={WeightUnitShort[unit]}
+          prompt="Log weight"
+          note={weightNote}
+          onClick={() => setSheet("weight")}
+          ariaLabel={weight ? `Morning weight ${displayWeight(s, weight.weightKg)}. Edit` : "Log morning weight"}
+        />
+        <Tile
+          icon="moon"
+          label="Sleep"
+          done={!!sleep}
+          value={sleep ? fmtHours(sleep.hours) : undefined}
+          tone={sleep && sleep.hours <= 5 ? "warning" : "primary"}
+          prompt="Log sleep"
+          note={
+            sleep
+              ? sleep.wakeUps === undefined
+                ? "Wake-ups not logged"
+                : `${sleep.wakeUps} wake-up${sleep.wakeUps === 1 ? "" : "s"}`
+              : "Last night"
+          }
+          onClick={() => setSheet("sleep")}
+          ariaLabel={sleep ? `Sleep ${fmtHours(sleep.hours)}. Edit` : "Log sleep"}
+        />
+        <Tile
+          icon="steps"
+          label="Steps"
+          done={steps !== undefined}
+          value={steps !== undefined ? steps.toLocaleString() : undefined}
+          prompt="Add steps"
+          note={`Goal ${stepTarget.toLocaleString()}`}
+          onClick={() => setSheet("steps")}
+          ariaLabel={steps !== undefined ? `Steps ${steps} of ${stepTarget}. Edit` : "Add steps"}
+        >
+          <span className="tile-meter">
+            <span style={{ width: `${Math.min((steps ?? 0) / Math.max(stepTarget, 1), 1) * 100}%` }} />
+          </span>
+        </Tile>
+        {isToday && (
+          <Tile
+            icon="fork"
+            label="Meals"
+            done={mealsDone >= mealsTotal}
+            value={`${mealsDone} / ${mealsTotal}`}
+            prompt=""
+            note="Open log"
+            onClick={() => actions.selectTab("log")}
+            ariaLabel={`Meals: ${mealsDone} of ${mealsTotal} logged. Open Log`}
+          >
+            <span className="tile-pips">
+              {Array.from({ length: mealsTotal }, (_, i) => (
+                <span key={i} className={i < mealsDone ? "on" : ""} />
+              ))}
+            </span>
+          </Tile>
+        )}
+      </div>
+
+      {sheet === "weight" && <WeightSheet day={day} onClose={() => setSheet(null)} />}
+      {sheet === "sleep" && <SleepSheet day={day} onClose={() => setSheet(null)} />}
+      {sheet === "steps" && <StepsSheet day={day} onClose={() => setSheet(null)} />}
+    </Section>
+  );
+}
+
+function WeightSheet({ day, onClose }: { day: Day; onClose: () => void }) {
+  const s = useApp();
+  const entry = weightEntryOn(s, day);
+  const isToday = day === today();
+  const unit = s.profile.weightUnit;
+  const [text, setText] = useState(() =>
+    entry
+      ? UnitConversion.displayWeight(entry.weightKg, unit).toFixed(1)
+      : isToday
+        ? UnitConversion.displayWeight(s.profile.currentWeightKg, unit).toFixed(1)
+        : "",
+  );
+  const parsed = parseDecimal(text);
+  const valid = parsed !== undefined && parsed > 0;
+  return (
+    <Sheet title={`Morning weight — ${dayLabel(day)}`} onClose={onClose}>
+      <div className="input-unit">
+        <NumberInput big autoFocus value={text} onChange={setText} placeholder="0.0" ariaLabel={`Morning weight for ${dayLabel(day)}`} />
+        <span className="unit">{WeightUnitShort[unit]}</span>
+      </div>
+      <p className="caption">For the most consistent readings, weigh yourself under similar morning conditions.</p>
+      <Button
+        disabled={!valid}
+        onClick={() => {
+          if (!valid) return;
+          actions.logMorningWeight(parsed!, unit, day);
+          onClose();
+          toast(isToday ? "Morning weight logged" : `Weight saved for ${dayLabel(day)}`);
+        }}
+      >
+        {entry ? "Save Weight" : "Log Weight"}
+      </Button>
+    </Sheet>
+  );
+}
+
+function SleepSheet({ day, onClose }: { day: Day; onClose: () => void }) {
   const s = useApp();
   const entry = sleepOn(s, day);
   const [hoursText, setHoursText] = useState(entry ? String(Math.round(entry.hours * 100) / 100) : "");
   const [wakeText, setWakeText] = useState(entry?.wakeUps !== undefined ? String(entry.wakeUps) : "");
-  const [editing, setEditing] = useState(!entry);
   const hours = parseHours(hoursText);
   const wakeUps = wakeText.trim() === "" ? undefined : Number(wakeText);
   const valid = hours !== undefined && (wakeUps === undefined || (Number.isInteger(wakeUps) && wakeUps >= 0 && wakeUps < 50));
-
   return (
-    <Card>
-      <div className="row-between">
-        <h3 className="headline row" style={{ gap: 8 }}>
-          <Icon name="moon" /> Sleep
-        </h3>
-        {entry && !editing && (
-          <button className="link-btn" onClick={() => setEditing(true)}>
-            Edit
-          </button>
-        )}
+    <Sheet title={`Sleep — ${dayLabel(day)}`} onClose={onClose}>
+      <div className="grid-2">
+        <label className="field">
+          <span>Enter sleep (hours)</span>
+          <input
+            className="input"
+            inputMode="decimal"
+            autoFocus
+            placeholder="e.g. 7.5 or 7:30"
+            value={hoursText}
+            onChange={(e) => setHoursText(e.target.value.replace(/[^0-9.,:h ]/gi, ""))}
+            aria-label="Hours slept"
+          />
+        </label>
+        <label className="field">
+          <span>Wake-ups (optional)</span>
+          <NumberInput integer value={wakeText} onChange={setWakeText} placeholder="0" ariaLabel="Wake-ups" />
+        </label>
       </div>
-      {entry && !editing ? (
-        <div className="row" style={{ gap: 16, alignItems: "baseline" }}>
-          <span className={`num-lg pop-in ${entry.hours <= 5 ? "warning" : "accent"}`}>{fmtHours(entry.hours)}</span>
-          <span className="sub">
-            {entry.wakeUps === undefined ? "Wake-ups not logged" : `${entry.wakeUps} wake-up${entry.wakeUps === 1 ? "" : "s"}`}
-          </span>
-        </div>
-      ) : (
-        <>
-          <div className="grid-2">
-            <label className="field">
-              <span>Enter sleep (hours)</span>
-              <input
-                className="input"
-                inputMode="decimal"
-                placeholder="e.g. 7.5 or 7:30"
-                value={hoursText}
-                onChange={(e) => setHoursText(e.target.value.replace(/[^0-9.,:h ]/gi, ""))}
-                aria-label="Hours slept"
-              />
-            </label>
-            <label className="field">
-              <span>Wake-ups (optional)</span>
-              <NumberInput integer value={wakeText} onChange={setWakeText} placeholder="0" ariaLabel="Wake-ups" />
-            </label>
-          </div>
-          <span className="caption">Sleep for the night before {day === today() ? "today" : dayLabel(day)}.</span>
-          <Button
-            disabled={!valid}
-            onClick={() => {
-              actions.logSleep(hours!, wakeUps, day);
-              setEditing(false);
-              toast("Sleep saved");
-            }}
-          >
-            Save Sleep
-          </Button>
-        </>
-      )}
-    </Card>
+      <span className="caption">Sleep for the night before {day === today() ? "today" : dayLabel(day)}.</span>
+      <Button
+        disabled={!valid}
+        onClick={() => {
+          actions.logSleep(hours!, wakeUps, day);
+          onClose();
+          toast("Sleep saved");
+        }}
+      >
+        Save Sleep
+      </Button>
+    </Sheet>
   );
 }
 
-function TargetsCard({ day }: { day: Day }) {
+function StepsSheet({ day, onClose }: { day: Day; onClose: () => void }) {
   const s = useApp();
-  const target = targetFor(s, day);
-  if (!target) {
-    return (
-      <Card>
-        <EmptyState
-          icon="fork"
-          title="No plan yet"
-          message="Your coach hasn't built today's nutrition targets."
-          actionTitle="Generate Meal Plan"
-          onAction={() => {
-            actions.rebuildTargetsFromProfile();
-            actions.generateMealPlan(day);
-          }}
-        />
-      </Card>
-    );
-  }
+  const steps = stepsOn(s, day)?.steps;
+  const stepTarget = targetFor(s, day)?.stepTarget ?? s.profile.stepTarget;
+  const [text, setText] = useState(steps !== undefined ? String(steps) : "");
   return (
-    <Card>
-      <div className="row-between">
-        <h3 className="headline">{day === today() ? "Today's Targets" : `${dayLabel(day)}'s Targets`}</h3>
-        {target.source === "adaptiveModel" && <span className="badge ok">Personalised</span>}
-      </div>
-      <div className="row" style={{ alignItems: "baseline", gap: 4 }}>
-        <span className="num" style={{ fontSize: 40, color: "var(--primary)" }}>
-          {target.calories.toLocaleString()}
-        </span>
-        <span className="title2 muted">kcal</span>
-      </div>
-      <div className="row" style={{ gap: 8 }}>
-        {(["protein", "carbohydrates", "fat"] as const).map((k) => (
-          <div
-            key={k}
-            className="grow center stack-sm macro-pill"
-            style={{
-              gap: 2,
-              padding: "8px 4px",
-              borderRadius: "var(--r-sm)",
-              background: `color-mix(in srgb, ${MacroMeta[k].color} 12%, transparent)`,
-            }}
-          >
-            <span className="caption">{MacroMeta[k].label}</span>
-            <span className="num" style={{ fontSize: 15 }}>{Math.round(target.macros[k])} g</span>
-          </div>
-        ))}
-      </div>
-    </Card>
+    <Sheet title={`Steps — ${dayLabel(day)}`} onClose={onClose}>
+      <NumberInput integer big autoFocus value={text} onChange={setText} placeholder="0" ariaLabel="Steps" />
+      <p className="caption">Your step target is {stepTarget.toLocaleString()} steps.</p>
+      <Button
+        disabled={text === "" || !Number.isFinite(Number(text))}
+        onClick={() => {
+          actions.logSteps(Math.round(Number(text)), day);
+          onClose();
+        }}
+      >
+        Save
+      </Button>
+    </Sheet>
   );
 }
 
-function CardioCard() {
+// ---------------------------------------------------------------------------
+// From your coach: today's cardio and status
+// ---------------------------------------------------------------------------
+
+function CoachThread() {
   const s = useApp();
   const day = today();
   const model = adaptiveModel(s);
@@ -425,147 +568,93 @@ function CardioCard() {
     targetKgPerWeek: confident ? rec!.targetKgPerWeek : undefined,
   });
   return (
-    <section className={`card cardio tone-${cardio.tone}`}>
-      <div className="row-between">
-        <span className="caption row" style={{ gap: 6 }}>
-          <Icon name="heart" size={14} /> Coach's cardio for today
-        </span>
-        {cardio.minutes > 0 && <span className="badge training">{cardio.minutes} min</span>}
+    <Section label="From your coach">
+      <div className="coach-thread">
+        <CoachAvatar size={36} />
+        <div className="coach-msgs">
+          <div className={`coach-msg cardio tone-${cardio.tone}`}>
+            <div className="row-between">
+              <Eyebrow>Coach's cardio for today</Eyebrow>
+              {cardio.minutes > 0 && <span className="minutes">{cardio.minutes} min</span>}
+            </div>
+            <span className="coach-msg-title">{cardio.title}</span>
+            <span className="callout">{cardio.activity}</span>
+            <span className="caption">{cardio.intensity}</span>
+            <ul className="reasons">
+              {cardio.reasons.map((r) => (
+                <li key={r} className="caption2">
+                  {r}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="coach-msg">
+            <span>{s.coachStatusMessage}</span>
+            <button className="link-btn" style={{ alignSelf: "flex-start", padding: 0 }} onClick={() => actions.selectTab("coach")}>
+              {hasCoachAccess(s) ? "View Coach Analysis" : "Unlock Coach AI"}
+            </button>
+          </div>
+        </div>
       </div>
-      <span className="title2">{cardio.title}</span>
-      <span className="callout">{cardio.activity}</span>
-      <span className="caption">{cardio.intensity}</span>
-      <ul className="reasons">
-        {cardio.reasons.map((r) => (
-          <li key={r} className="caption2">
-            {r}
-          </li>
-        ))}
-      </ul>
-    </section>
+    </Section>
   );
 }
 
-function StepsCard({ day }: { day: Day }) {
-  const s = useApp();
-  const steps = stepsOn(s, day)?.steps;
-  const stepTarget = targetFor(s, day)?.stepTarget ?? s.profile.stepTarget;
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
-  const value = steps ?? 0;
-  return (
-    <Card>
-      <div className="row-between">
-        <h3 className="headline">Steps</h3>
-        <button
-          className="link-btn"
-          onClick={() => {
-            setText(steps !== undefined ? String(steps) : "");
-            setOpen(true);
-          }}
-        >
-          {steps === undefined ? "Add" : "Edit"}
-        </button>
-      </div>
-      <span className="num-md">
-        {value.toLocaleString()} / {stepTarget.toLocaleString()}
-      </span>
-      <div className="bar">
-        <div style={{ width: `${Math.min(value / Math.max(stepTarget, 1), 1) * 100}%`, background: "var(--primary)" }} />
-      </div>
-      {open && (
-        <Sheet title={`Steps — ${dayLabel(day)}`} onClose={() => setOpen(false)}>
-          <NumberInput integer big autoFocus value={text} onChange={setText} placeholder="0" ariaLabel="Steps" />
-          <p className="caption">Your step target is {stepTarget.toLocaleString()} steps.</p>
-          <Button
-            disabled={text === "" || !Number.isFinite(Number(text))}
-            onClick={() => {
-              actions.logSteps(Math.round(Number(text)), day);
-              setOpen(false);
-            }}
-          >
-            Save
-          </Button>
-        </Sheet>
-      )}
-    </Card>
-  );
-}
+// ---------------------------------------------------------------------------
+// The week at a glance
+// ---------------------------------------------------------------------------
 
-function RecentDays({ selected, onSelect }: { selected: Day; onSelect: (d: Day) => void }) {
+const compactSteps = (n: number) => (n < 1000 ? String(n) : n < 10_000 ? `${(n / 1000).toFixed(1)}k` : `${Math.round(n / 1000)}k`);
+const compactHours = (h: number) => `${Math.round(h * 10) / 10}h`;
+
+function WeekBoard({ days, selected, onSelect }: { days: Day[]; selected: Day; onSelect: (d: Day) => void }) {
   const s = useApp();
-  const days = Array.from({ length: 7 }, (_, i) => addDays(today(), -i));
-  const missingWeight = days.filter((d) => d !== today() && !weightEntryOn(s, d)).length;
+  const unit = s.profile.weightUnit;
+  const oldest = addDays(today(), -MAX_DAYS_BACK);
+  const missingWeight = days.filter((d) => d < today() && d >= oldest && !weightEntryOn(s, d)).length;
+  const range =
+    days[6] === today()
+      ? "Last 7 days"
+      : `${fromDay(days[0]).toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${fromDay(days[6]).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
   return (
-    <Card>
-      <div className="row-between">
-        <h3 className="headline">Last 7 Days</h3>
-        {missingWeight > 0 && <span className="badge warn">{missingWeight} weigh-in{missingWeight === 1 ? "" : "s"} missing</span>}
-      </div>
-      <div className="recent-table" role="table" aria-label="Recent days">
-        <div className="recent-row head" role="row">
-          <span>Day</span>
-          <span>Weight</span>
-          <span>Sleep</span>
-          <span>Steps</span>
+    <Section
+      label={range}
+      aside={missingWeight > 0 && <span className="badge warn">{missingWeight} weigh-in{missingWeight === 1 ? "" : "s"} missing</span>}
+    >
+      <div className="board" aria-label="Recent days">
+        <div className="board-labels" aria-hidden="true">
+          <span />
+          <Icon name="scale" size={15} />
+          <Icon name="moon" size={15} />
+          <Icon name="steps" size={15} />
         </div>
         {days.map((d) => {
           const w = weightEntryOn(s, d);
           const sl = sleepOn(s, d);
           const st = stepsOn(s, d);
+          const wText = w ? UnitConversion.displayWeight(w.weightKg, unit).toFixed(1) : undefined;
           return (
-            <button key={d} role="row" className={`recent-row${d === selected ? " selected" : ""}`} onClick={() => onSelect(d)}>
-              <span className="row" style={{ gap: 6 }}>
-                <span className={`dot ${isTrainingDay(s, d) ? "dot-training" : "dot-rest"}`} />
-                {dayLabel(d)}
+            <button
+              key={d}
+              className={`board-col recent-row${d === selected ? " selected" : ""}${d === today() ? " today" : ""}`}
+              disabled={d < oldest}
+              onClick={() => onSelect(d)}
+              aria-label={`${dayLabel(d)}: weight ${w ? displayWeight(s, w.weightKg) : "missing"}, sleep ${sl ? fmtHours(sl.hours) : "missing"}, steps ${st ? st.steps : "missing"}`}
+            >
+              <span className="board-day">
+                <i className={`dot ${isTrainingDay(s, d) ? "dot-training" : "dot-rest"}`} />
+                {d === today() ? "Today" : shortWeekday(d)}
               </span>
-              <span className={w ? "num" : "missing"}>{w ? displayWeight(s, w.weightKg) : "—"}</span>
-              <span className={sl ? "num" : "missing"}>{sl ? fmtHours(sl.hours) : "—"}</span>
-              <span className={st ? "num" : "missing"}>{st ? st.steps.toLocaleString() : "—"}</span>
+              <span className={wText ? "board-cell" : "board-cell missing"}>{wText ?? "–"}</span>
+              <span className={sl ? `board-cell${sl.hours <= 5 ? " low" : ""}` : "board-cell blank"}>{sl ? compactHours(sl.hours) : "–"}</span>
+              <span className={st ? "board-cell" : "board-cell blank"}>{st ? compactSteps(st.steps) : "–"}</span>
             </button>
           );
         })}
       </div>
-      <span className="caption">Tap a day to view or fill in what you missed.</span>
-    </Card>
-  );
-}
-
-function MealsAndCoach() {
-  const s = useApp();
-  const day = today();
-  const target = targetFor(s, day);
-  const slots = mealSlots(target?.isTrainingDay ?? isTrainingDay(s, day));
-  const logged = new Set(diaryFor(s, day).entries.map((e) => e.mealSlot));
-  const complete = slots.filter((slot) => logged.has(slot) || (slot === "preWorkout" && logged.has("intraWorkout"))).length;
-  const planMeals = s.mealPlanDays[day]?.meals.length ?? slots.length;
-  return (
-    <>
-      <Card>
-        <div className="row-between">
-          <div className="stack-sm" style={{ gap: 2 }}>
-            <h3 className="headline">Meals</h3>
-            <span className="sub">
-              {complete} / {Math.max(planMeals, CoachingConfig.requiredMealCount)} logged
-            </span>
-          </div>
-          <button className="btn btn-secondary btn-sm" onClick={() => actions.selectTab("log")}>
-            Open Log
-          </button>
-        </div>
-      </Card>
-      <Card>
-        <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
-          <CoachAvatar size={40} />
-          <div className="stack-sm grow" style={{ gap: 4 }}>
-            <h3 className="headline">Coach</h3>
-            <p className="sub">{s.coachStatusMessage}</p>
-          </div>
-        </div>
-        <button className="link-btn" style={{ alignSelf: "flex-start" }} onClick={() => actions.selectTab("coach")}>
-          {hasCoachAccess(s) ? "View Coach Analysis" : "Unlock Coach AI"}
-        </button>
-      </Card>
-    </>
+      <span className="caption board-legend">
+        <i className="dot dot-training" /> Training <i className="dot dot-rest" /> Rest · Tap a day to view or fill in what you missed.
+      </span>
+    </Section>
   );
 }

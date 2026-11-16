@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { type Day, addDays, formatLong, today } from "../core/dates";
+import { type Day, addDays, datesInWeek, formatLong, today } from "../core/dates";
 import { type FoodLogEntry, type MealSlot, Macros, MeasurementLabel, fmt, mealName, mealSlots } from "../core/models";
 import { parseDecimal } from "../engines/units";
 import { actions, diaryFor, isTrainingDay, targetFor, useApp } from "../state/store";
-import { Button, CalorieRing, Card, FoodRow, Icon, MacroBar, NumberInput, SectionHeader, Sheet, confirmDialog, toast } from "../ui/kit";
+import { Brief, Eyebrow, Fuel, Hex, MacroChips, Section, WeekStrip } from "../ui/brief";
+import { Button, Icon, NumberInput, Sheet, confirmDialog, toast } from "../ui/kit";
 import { AddFoodFlow, CustomFoodEditor } from "./FoodSheets";
 
 function amountLabel(e: FoodLogEntry): string {
@@ -22,10 +23,24 @@ export function FoodLog() {
 
   const diary = diaryFor(s, day);
   const target = targetFor(s, day);
-  const slots = mealSlots(isTrainingDay(s, day));
+  const training = isTrainingDay(s, day);
+  const slots = mealSlots(training);
   const consumed = diary.entries.reduce((sum, e) => sum + e.loggedCalories, 0);
   const macros = Macros.sum(diary.entries.map((e) => e.loggedMacros));
-  const calorieTarget = target?.calories ?? 0;
+
+  const meals = slots.map((slot) => ({
+    slot,
+    name: mealName(s.preferences, slot),
+    entries: diary.entries.filter(
+      (e) =>
+        e.mealSlot === slot ||
+        (slot === "preWorkout" && e.mealSlot === "intraWorkout") ||
+        (slot === "afternoonSnack" && e.mealSlot === "custom") ||
+        // Entries logged on a different day type (e.g. "lunch" on a training day) still need a home.
+        (!slots.includes(e.mealSlot) && e.mealSlot !== "intraWorkout" && e.mealSlot !== "custom" && slot === slots[slots.length - 1]),
+    ),
+  }));
+  const mealsLogged = meals.filter((m) => m.entries.length > 0).length;
 
   function copyYesterday() {
     if (diaryFor(s, addDays(day, -1)).entries.length === 0) {
@@ -45,85 +60,123 @@ export function FoodLog() {
         </button>
       </div>
 
-      <div className="row-between card" style={{ flexDirection: "row", padding: "6px 8px" }}>
-        <button className="icon-btn" aria-label="Previous day" onClick={() => setDay(addDays(day, -1))}>
-          <Icon name="chevronLeft" />
-        </button>
-        <button className="headline" style={{ border: "none", background: "none" }} onClick={() => setDay(today())}>
-          {day === today() ? "Today" : formatLong(day)}
-        </button>
-        <button className="icon-btn" aria-label="Next day" onClick={() => setDay(addDays(day, 1))}>
-          <Icon name="chevronRight" />
-        </button>
+      <div className="stack-sm">
+        <WeekStrip
+          days={datesInWeek(day)}
+          selected={day}
+          today={today()}
+          onSelect={setDay}
+          marker={(d) => {
+            const dd = diaryFor(s, d);
+            return dd.markedComplete ? "done" : dd.entries.length > 0 ? "some" : "none";
+          }}
+          onPrev={() => setDay(addDays(day, -7))}
+          onNext={() => setDay(addDays(day, 7))}
+        />
+        <div className="day-line">
+          <Eyebrow>{day === today() ? `Today · ${formatLong(day)}` : formatLong(day)}</Eyebrow>
+          {day !== today() && (
+            <button className="link-btn" onClick={() => setDay(today())}>
+              Jump to today
+            </button>
+          )}
+        </div>
       </div>
 
-      <Card>
-        <div className="row" style={{ gap: 16 }}>
-          <CalorieRing consumed={consumed} target={Math.max(calorieTarget, 1)} size={120} />
-          <div className="stack-sm">
-            <span className="caption">Remaining</span>
-            <span className="num-md">{Math.round(calorieTarget - consumed)} kcal</span>
-            <span className="caption2">Free forever — no subscription required.</span>
-          </div>
+      <Brief className={training ? "is-training" : "is-rest"} label="Calories and macros">
+        <div className="brief-head">
+          <Eyebrow>{training ? "Training day budget" : "Rest day budget"}</Eyebrow>
+          {diary.markedComplete && (
+            <span className="brief-tag ok">
+              <Icon name="check" size={13} /> Complete
+            </span>
+          )}
         </div>
-        <MacroBar kind="protein" current={macros.protein} target={Math.max(target?.macros.protein ?? 0, 1)} />
-        <MacroBar kind="carbohydrates" current={macros.carbohydrates} target={Math.max(target?.macros.carbohydrates ?? 0, 1)} />
-        <MacroBar kind="fat" current={macros.fat} target={Math.max(target?.macros.fat ?? 0, 1)} />
-      </Card>
-
-      {slots.map((slot) => {
-        const entries = diary.entries.filter(
-          (e) =>
-            e.mealSlot === slot ||
-            (slot === "preWorkout" && e.mealSlot === "intraWorkout") ||
-            (slot === "afternoonSnack" && e.mealSlot === "custom") ||
-            // Entries logged on a different day type (e.g. "lunch" on a training day) still need a home.
-            (!slots.includes(e.mealSlot) && e.mealSlot !== "intraWorkout" && e.mealSlot !== "custom" && slot === slots[slots.length - 1]),
-        );
-        return (
-          <div key={slot} className="stack-sm">
-            <SectionHeader title={mealName(s.preferences, slot)} action="Add Food +" onAction={() => setAddSlot(slot)} />
-            {entries.length === 0 ? (
-              <span className="sub" style={{ padding: "0 4px" }}>
-                Nothing logged yet.
-              </span>
-            ) : (
-              <div className="list">
-                {entries.map((entry) => (
-                  <FoodRow
-                    key={entry.id}
-                    food={entry.food}
-                    amountLabel={amountLabel(entry)}
-                    calories={entry.loggedCalories}
-                    macros={entry.loggedMacros}
-                    trailing={
-                      <button
-                        className="icon-btn"
-                        style={{ width: 34, height: 34, color: "var(--danger)" }}
-                        aria-label={`Delete ${entry.food.name}`}
-                        onClick={async () => {
-                          if (await confirmDialog({ title: `Remove ${entry.food.name}?`, confirm: "Remove", destructive: true })) {
-                            actions.deleteFoodEntry(entry);
-                          }
-                        }}
-                      >
-                        <Icon name="trash" size={16} />
-                      </button>
-                    }
-                  />
-                ))}
-              </div>
-            )}
+        {target ? (
+          <Fuel flush calories={consumed} target={target.calories} macros={macros} targetMacros={target.macros} />
+        ) : (
+          <div className="brief-empty" style={{ borderTop: "none", paddingTop: 0 }}>
+            <strong>{Math.round(consumed).toLocaleString()} kcal eaten</strong>
+            <span>No targets yet — finish setup to see what's left for the day.</span>
           </div>
-        );
-      })}
+        )}
+      </Brief>
 
-      <Button variant="secondary" onClick={copyYesterday}>
-        <Icon name="copy" size={18} /> Copy Yesterday
-      </Button>
-      <button className="link-btn" onClick={() => actions.setDiaryComplete(day, !diary.markedComplete)}>
-        {diary.markedComplete ? "✓ Day marked complete" : "Mark day complete"}
-      </button>
+      <Section label="Meals" aside={<span className={`section-count${mealsLogged === meals.length ? " ok" : ""}`}>{mealsLogged} of {meals.length} logged</span>}>
+        <ol className="rail">
+          {meals.map(({ slot, name, entries }, i) => {
+            const kcal = entries.reduce((sum, e) => sum + e.loggedCalories, 0);
+            const empty = entries.length === 0;
+            const addButton = (
+              <button className="add-row" aria-label={`Add food to ${name}`} onClick={() => setAddSlot(slot)}>
+                <Icon name="plus" size={16} /> Add food
+              </button>
+            );
+            return (
+              <li key={slot} className={`rail-item ${empty ? "is-empty" : "done"}`}>
+                <span className="rail-node">
+                  <Hex tone={empty ? "muted" : "primary"} solid={!empty}>
+                    {i + 1}
+                  </Hex>
+                </span>
+                {empty ? (
+                  <div className="rail-body">
+                    <h3 className="rail-title">{name}</h3>
+                    {addButton}
+                  </div>
+                ) : (
+                  <div className="rail-body">
+                    <div className="rail-head">
+                      <h3 className="rail-title">{name}</h3>
+                      <span className="rail-kcal">
+                        {Math.round(kcal)} <small>kcal</small>
+                      </span>
+                    </div>
+                    <MacroChips macros={Macros.sum(entries.map((e) => e.loggedMacros))} />
+                    <div className="rail-rows">
+                      {entries.map((entry) => (
+                        <div key={entry.id} className="entry">
+                          <div className="entry-text">
+                            <span className="entry-name">{entry.food.name}</span>
+                            <span className="caption2">{amountLabel(entry)}</span>
+                          </div>
+                          <span className="entry-kcal">{Math.round(entry.loggedCalories)} kcal</span>
+                          <button
+                            className="tool-btn danger"
+                            aria-label={`Delete ${entry.food.name}`}
+                            onClick={async () => {
+                              if (await confirmDialog({ title: `Remove ${entry.food.name}?`, confirm: "Remove", destructive: true })) {
+                                actions.deleteFoodEntry(entry);
+                              }
+                            }}
+                          >
+                            <Icon name="trash" size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {addButton}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </Section>
+
+      <div className="pair">
+        <button className="btn btn-secondary" onClick={copyYesterday}>
+          <Icon name="copy" size={17} /> Copy Yesterday
+        </button>
+        <button
+          className={`btn ${diary.markedComplete ? "btn-done" : "btn-secondary"}`}
+          aria-pressed={diary.markedComplete}
+          onClick={() => actions.setDiaryComplete(day, !diary.markedComplete)}
+        >
+          <Icon name="check" size={17} /> {diary.markedComplete ? "Day complete" : "Mark day complete"}
+        </button>
+      </div>
+      <p className="footnote">Food logging is free forever — no subscription required.</p>
 
       {menuOpen && (
         <Sheet title="Add" onClose={() => setMenuOpen(false)}>

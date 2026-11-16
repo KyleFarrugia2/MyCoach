@@ -27,6 +27,7 @@
 		3BFA9C8964497CEDA96C4139 /* quotes.json in Resources */ = {isa = PBXBuildFile; fileRef = BBBE2C38D8396A7A2F0D800E /* quotes.json */; };
 		3F96ECF06631D83A96006375 /* MyCoach.storekit in Resources */ = {isa = PBXBuildFile; fileRef = 8AB3B0DC9567603E45366503 /* MyCoach.storekit */; };
 		3FE8592DA34EE540BFE61D4E /* AdaptiveModelFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2641A69D611A515D6D37C1 /* AdaptiveModelFixture.swift */; };
+		3FEE8E5B7DA937C20E6A7488 /* MCBrief.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B98AF341787B0B149312DB2 /* MCBrief.swift */; };
 		412E1D20B6F0C19A801EE8C4 /* FoodsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D37AC064A47E99CA1ECC1055 /* FoodsView.swift */; };
 		42D61C0FB8CEB642663E5517 /* log.wav in Resources */ = {isa = PBXBuildFile; fileRef = 7CAB0CC4BA62487FF4CD4A59 /* log.wav */; };
 		4357021EC0404DE03196E25A /* ProgressViewScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E224BEC7141ABB9CFC5E57E8 /* ProgressViewScreen.swift */; };
@@ -153,6 +154,7 @@
 		5C784582F625F45F77AE18E5 /* View+Appearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = View+Appearance.swift; sourceTree = "<group>"; };
 		66EB28BE07B09754EFF68116 /* CardioCoach.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardioCoach.swift; sourceTree = "<group>"; };
 		69D81FB463F4AC93A22EC1FC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6B98AF341787B0B149312DB2 /* MCBrief.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCBrief.swift; sourceTree = "<group>"; };
 		6CADF0F609214211F5CF8E64 /* FoodSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodSearchView.swift; sourceTree = "<group>"; };
 		6DF3CC8EEEC8B2C1F4CDB7D3 /* MCTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCTheme.swift; sourceTree = "<group>"; };
 		6E4F7D69BBBE91B884D0F43B /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
@@ -285,6 +287,7 @@
 			children = (
 				1D5303F3E36B874592E8E46D /* ButtonSounds.swift */,
 				2269661BBE953234BC949594 /* MCAnimations.swift */,
+				6B98AF341787B0B149312DB2 /* MCBrief.swift */,
 				7AAA52C730F43B2475E6D873 /* MCComponents.swift */,
 				6DF3CC8EEEC8B2C1F4CDB7D3 /* MCTheme.swift */,
 			);
@@ -788,6 +791,7 @@
 				A79C4182470AAEE0C712A48A /* FeatureAccess.swift in Sources */,
 				7D72F818CD2188BEB9B1996E /* ButtonSounds.swift in Sources */,
 				0251EB9F6AF4478F9E77BFCA /* MCAnimations.swift in Sources */,
+				3FEE8E5B7DA937C20E6A7488 /* MCBrief.swift in Sources */,
 				587D71B02F7C580DFCE624F0 /* MCComponents.swift in Sources */,
 				461B57BA913F9DE69A0C915E /* MCTheme.swift in Sources */,
 				3AF1859934009C7363660737 /* View+Appearance.swift in Sources */,
