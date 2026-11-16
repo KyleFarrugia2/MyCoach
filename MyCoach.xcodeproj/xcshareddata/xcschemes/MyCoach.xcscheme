@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1600"
+   LastUpgradeVersion = "1430"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES">
+      buildImplicitDependencies = "YES"
+      runPostActionsOnFailure = "NO">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -14,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "963A6177B71F2A1D7DB780A9"
+               BlueprintIdentifier = "7C52C67110EF1453C5C53AD7"
                BuildableName = "MyCoach.app"
                BlueprintName = "MyCoach"
                ReferencedContainer = "container:MyCoach.xcodeproj">
@@ -27,14 +28,23 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
+      onlyGenerateCoverageForSpecifiedTargets = "NO">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "7C52C67110EF1453C5C53AD7"
+            BuildableName = "MyCoach.app"
+            BlueprintName = "MyCoach"
+            ReferencedContainer = "container:MyCoach.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
       <Testables>
          <TestableReference
             skipped = "NO"
-            parallelizable = "YES">
+            parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "99DFBDF9CB2F17EF3FDF712D"
+               BlueprintIdentifier = "DC714BF5988739C39E969A05"
                BuildableName = "MyCoachTests.xctest"
                BlueprintName = "MyCoachTests"
                ReferencedContainer = "container:MyCoach.xcodeproj">
@@ -42,16 +52,18 @@
          </TestableReference>
          <TestableReference
             skipped = "NO"
-            parallelizable = "YES">
+            parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "C39AEFC66E68D65D742004F4"
+               BlueprintIdentifier = "EF7235F7F4536124C71242F4"
                BuildableName = "MyCoachUITests.xctest"
                BlueprintName = "MyCoachUITests"
                ReferencedContainer = "container:MyCoach.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -67,15 +79,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "963A6177B71F2A1D7DB780A9"
+            BlueprintIdentifier = "7C52C67110EF1453C5C53AD7"
             BuildableName = "MyCoach.app"
             BlueprintName = "MyCoach"
             ReferencedContainer = "container:MyCoach.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <StoreKitConfigurationFileReference
-         identifier = "MyCoach/Resources/StoreKit/MyCoach.storekit">
-      </StoreKitConfigurationFileReference>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -87,12 +98,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "963A6177B71F2A1D7DB780A9"
+            BlueprintIdentifier = "7C52C67110EF1453C5C53AD7"
             BuildableName = "MyCoach.app"
             BlueprintName = "MyCoach"
             ReferencedContainer = "container:MyCoach.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

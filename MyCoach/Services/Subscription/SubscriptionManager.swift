@@ -1,6 +1,8 @@
 import Combine
 import Foundation
+#if !DISABLE_STOREKIT
 import StoreKit
+#endif
 
 // MARK: - Protocol
 
@@ -19,6 +21,7 @@ protocol SubscriptionProviding: AnyObject {
 
 // MARK: - StoreKit 2 manager
 
+#if !DISABLE_STOREKIT
 @MainActor
 final class SubscriptionManager: ObservableObject, SubscriptionProviding {
     @Published private(set) var entitlement: SubscriptionEntitlement
@@ -181,6 +184,7 @@ final class SubscriptionManager: ObservableObject, SubscriptionProviding {
         )
     }
 }
+#endif
 
 enum SubscriptionError: Error, LocalizedError, Sendable {
     case productUnavailable

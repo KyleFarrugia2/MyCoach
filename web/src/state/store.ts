@@ -58,13 +58,31 @@ import { makeWeek, rateOfChange } from "../engines/weight";
 import {
   type ExerciseLog,
   type TemplateOverride,
+  type TrainingProgramID,
+  type TrainingStyle,
   type WorkoutSession,
   type WorkoutTemplate,
   type WorkoutTemplateID,
-  TEMPLATE_IDS,
+  TrainingProgramInfo,
   WORKOUT_LIBRARY,
+  applyTrainingStyle,
   stagnantExercises,
+  trainingProgramOf,
+  trainingStyleOf,
 } from "../engines/workout";
+import {
+  type GeneratedWorkoutPlan,
+  type GymEquipment,
+  type TrainingGoal,
+  type TrainingVolume,
+  TYPICAL_GYM,
+  TrainingGoalInfo,
+  catalogEntry,
+  generateWorkoutPlan as buildGeneratedPlan,
+  generatedAsTemplate,
+  replacementsFor,
+  snapshotLibraryPlan,
+} from "../engines/exerciseCatalog";
 
 /** Port of AppEnvironment.swift — app state, actions, and localStorage persistence. */
 
@@ -88,6 +106,7 @@ export interface PersistedState {
   coachStatusMessage: string;
   workoutSessions: WorkoutSession[];
   workoutTemplateOverrides: TemplateOverride[];
+  generatedWorkoutPlan?: GeneratedWorkoutPlan;
   activeWorkout?: WorkoutSession;
   sleepEntries: SleepEntry[];
   /** Days where the coach changed the schedule (emergency rest days and moved sessions). */
@@ -186,6 +205,7 @@ function freshState(): AppState {
     coachStatusMessage: "Complete onboarding to unlock your plan.",
     workoutSessions: [],
     workoutTemplateOverrides: [],
+    generatedWorkoutPlan: undefined,
     activeWorkout: undefined,
     sleepEntries: [],
     dayOverrides: [],
@@ -1206,6 +1226,7 @@ export const actions = {
       photoSets: [],
       workoutSessions: [],
       workoutTemplateOverrides: [],
+      generatedWorkoutPlan: undefined,
       activeWorkout: undefined,
       workoutRestEndsAt: undefined,
       pendingStagnationAlerts: [],
@@ -1234,6 +1255,111 @@ export const actions = {
   },
 
   // Workouts ------------------------------------------------------------------
+
+  setTrainingStyle(style: TrainingStyle) {
+    update((s) => ({ preferences: { ...s.preferences, trainingStyle: style } }));
+  },
+
+  setTrainingProgram(id: TrainingProgramID) {
+    update((s) => {
+      const rotation = TrainingProgramInfo[id].templateIDs;
+      const keepActive = s.activeWorkout && rotation.includes(s.activeWorkout.templateID);
+      return {
+        preferences: { ...s.preferences, trainingProgramID: id },
+        generatedWorkoutPlan: s.generatedWorkoutPlan?.programID === id ? s.generatedWorkoutPlan : undefined,
+        activeWorkout: keepActive ? s.activeWorkout : undefined,
+        workoutRestEndsAt: keepActive ? s.workoutRestEndsAt : undefined,
+      };
+    });
+  },
+
+  generateWorkoutPlan(input: { volume: TrainingVolume; goal: TrainingGoal; equipment: GymEquipment[]; regenerate: boolean }) {
+    const blocked = input.regenerate ? (state.generatedWorkoutPlan?.blockedExerciseIDs ?? []) : [];
+    const seed = input.regenerate ? (state.generatedWorkoutPlan?.seed ?? 0) + 1 : 1;
+    return buildGeneratedPlan({
+      seed: Math.max(1, seed),
+      volume: input.volume,
+      goal: input.goal,
+      equipment: input.equipment,
+      daysPerWeek: state.profile.trainingDays.length,
+      blockedIDs: blocked,
+    });
+  },
+
+  applyGeneratedPlan(plan: GeneratedWorkoutPlan) {
+    update((s) => {
+      const ids = new Set(plan.days.map((d) => d.templateID));
+      const keepActive =
+        s.activeWorkout && TrainingProgramInfo[plan.programID].templateIDs.includes(s.activeWorkout.templateID);
+      return {
+        generatedWorkoutPlan: plan,
+        preferences: {
+          ...s.preferences,
+          trainingVolume: plan.volume,
+          trainingGoal: plan.goal,
+          gymEquipment: plan.equipment,
+          trainingProgramID: plan.programID,
+          trainingStyle: TrainingGoalInfo[plan.goal].style,
+        },
+        workoutTemplateOverrides: s.workoutTemplateOverrides.filter((o) => !ids.has(o.templateID)),
+        activeWorkout: keepActive ? s.activeWorkout : undefined,
+        workoutRestEndsAt: keepActive ? s.workoutRestEndsAt : undefined,
+      };
+    });
+  },
+
+  replaceExercise(templateID: WorkoutTemplateID, exerciseID: string, catalogID: string) {
+    update((s) => {
+      const plan = ensurePlan(s);
+      const entry = catalogEntry(catalogID);
+      if (!plan || !entry) return {};
+      const day = plan.days.find((d) => d.templateID === templateID);
+      const exercise = day?.exercises.find((e) => e.catalogID === exerciseID);
+      if (!day || !exercise) return {};
+      const nextPlan: GeneratedWorkoutPlan = {
+        ...plan,
+        blockedExerciseIDs: plan.blockedExerciseIDs.includes(exercise.catalogID)
+          ? plan.blockedExerciseIDs
+          : [...plan.blockedExerciseIDs, exercise.catalogID],
+        days: plan.days.map((d) =>
+          d.templateID !== templateID
+            ? d
+            : {
+                ...d,
+                exercises: d.exercises.map((e) =>
+                  e.catalogID === exerciseID
+                    ? {
+                        catalogID: entry.id,
+                        name: entry.name,
+                        muscle: entry.muscle,
+                        equipment: entry.equipment,
+                        defaultSets: e.defaultSets,
+                        isBodyweightMaxReps: entry.isBodyweightMaxReps,
+                      }
+                    : e,
+                ),
+              },
+        ),
+      };
+      const overrides = s.workoutTemplateOverrides.map((o) => {
+        if (o.templateID !== templateID || o.setCounts[exerciseID] === undefined) return o;
+        const { [exerciseID]: moved, ...rest } = o.setCounts;
+        return { ...o, setCounts: { ...rest, [catalogID]: moved } };
+      });
+      let active = s.activeWorkout;
+      if (active && active.templateID === templateID) {
+        active = {
+          ...active,
+          exercises: active.exercises.map((e) =>
+            e.id === exerciseID && e.sets.length === 0
+              ? { id: entry.id, name: entry.name, plannedSets: exercise.defaultSets, isBodyweightMaxReps: entry.isBodyweightMaxReps, sets: [] }
+              : e,
+          ),
+        };
+      }
+      return { generatedWorkoutPlan: nextPlan, workoutTemplateOverrides: overrides, activeWorkout: active };
+    });
+  },
 
   startWorkout(templateID: WorkoutTemplateID) {
     const template = resolvedTemplate(state, templateID);
@@ -1351,8 +1477,20 @@ export const actions = {
 
 // Workout selectors ------------------------------------------------------------
 
+export function resolvedVolume(s: AppState): TrainingVolume {
+  return s.preferences.trainingVolume ?? "high";
+}
+export function resolvedGoal(s: AppState): TrainingGoal {
+  return s.preferences.trainingGoal ?? "bodybuilding";
+}
+export function resolvedEquipment(s: AppState): GymEquipment[] {
+  const picked = s.preferences.gymEquipment ?? TYPICAL_GYM;
+  return picked.length ? picked : TYPICAL_GYM;
+}
+
 export function resolvedTemplate(s: AppState, id: WorkoutTemplateID): WorkoutTemplate {
-  const base = WORKOUT_LIBRARY.find((t) => t.id === id)!;
+  const generated = s.generatedWorkoutPlan ? generatedAsTemplate(s.generatedWorkoutPlan, id) : undefined;
+  const base = generated ?? applyTrainingStyle(trainingStyleOf(s.preferences), WORKOUT_LIBRARY.find((t) => t.id === id)!);
   const override = s.workoutTemplateOverrides.find((o) => o.templateID === id);
   if (!override) return base;
   return {
@@ -1363,11 +1501,45 @@ export function resolvedTemplate(s: AppState, id: WorkoutTemplateID): WorkoutTem
   };
 }
 
-/** The next workout in the rotation (after the most recently completed session). */
+function ensurePlan(s: AppState): GeneratedWorkoutPlan | undefined {
+  if (s.generatedWorkoutPlan) return s.generatedWorkoutPlan;
+  const programID = trainingProgramOf(s.preferences);
+  return snapshotLibraryPlan({
+    programID,
+    volume: resolvedVolume(s),
+    goal: resolvedGoal(s),
+    equipment: resolvedEquipment(s),
+    templates: TrainingProgramInfo[programID].templateIDs.map((id) => resolvedTemplate(s, id)),
+  });
+}
+
+export function replacementOptions(s: AppState, templateID: WorkoutTemplateID, exerciseID: string) {
+  const plan = s.generatedWorkoutPlan ?? ensurePlan(s);
+  const day = plan?.days.find((d) => d.templateID === templateID);
+  const current = day?.exercises.find((e) => e.catalogID === exerciseID);
+  const entry = current
+    ? (catalogEntry(current.catalogID) ?? {
+        id: current.catalogID,
+        name: current.name,
+        muscle: current.muscle,
+        equipment: current.equipment,
+        isCompound: false,
+        isBodyweightMaxReps: current.isBodyweightMaxReps,
+      })
+    : catalogEntry(exerciseID);
+  if (!entry) return [];
+  const excluding = new Set((day?.exercises ?? []).map((e) => e.catalogID));
+  return replacementsFor(entry, new Set(plan?.equipment ?? resolvedEquipment(s)), new Set(plan?.blockedExerciseIDs ?? []), excluding);
+}
+
+/** The next workout in the rotation (after the most recently completed session in this program). */
 export function nextWorkoutTemplate(s: AppState): WorkoutTemplateID {
-  const last = s.workoutSessions.filter((w) => w.completedAt).sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
-  if (!last) return TEMPLATE_IDS[0];
-  return TEMPLATE_IDS[(TEMPLATE_IDS.indexOf(last.templateID) + 1) % TEMPLATE_IDS.length];
+  const rotation = TrainingProgramInfo[trainingProgramOf(s.preferences)].templateIDs;
+  const last = s.workoutSessions
+    .filter((w) => w.completedAt && rotation.includes(w.templateID))
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
+  if (!last) return rotation[0];
+  return rotation[(rotation.indexOf(last.templateID) + 1) % rotation.length];
 }
 
 function longWeekday(day: Day): string {

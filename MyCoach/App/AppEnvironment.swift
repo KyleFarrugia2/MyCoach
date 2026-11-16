@@ -29,6 +29,7 @@ final class AppEnvironment {
     var paywallComparisonCoachEUR: Double
     var workoutSessions: [WorkoutSession]
     var workoutTemplateOverrides: [WorkoutTemplateOverride]
+    var generatedWorkoutPlan: GeneratedWorkoutPlan?
     var sleepEntries: [SleepEntry]
     /// Days where the coach changed the schedule (emergency rest days and moved sessions).
     var dayOverrides: [DayOverride]
@@ -58,6 +59,20 @@ final class AppEnvironment {
     private var bundledFoodCache: [FoodItem] = []
 
     // MARK: - Init
+
+    private static func defaultSubscriptionProvider(
+        initial: SubscriptionEntitlement? = nil,
+        onEntitlementChange: ((SubscriptionEntitlement) -> Void)? = nil
+    ) -> any SubscriptionProviding {
+        #if DISABLE_STOREKIT
+        return MockSubscriptionManager(
+            status: initial?.status ?? .notSubscribed,
+            localizedPrice: initial?.localizedPrice
+        )
+        #else
+        return SubscriptionManager(initial: initial, onEntitlementChange: onEntitlementChange)
+        #endif
+    }
 
     init(persistenceDirectory: URL? = nil, subscriptionProvider: (any SubscriptionProviding)? = nil) {
         let dir = persistenceDirectory
@@ -89,9 +104,10 @@ final class AppEnvironment {
             self.paywallComparisonCoachEUR = snapshot.paywallComparisonCoachEUR
             self.workoutSessions = snapshot.workoutSessions
             self.workoutTemplateOverrides = snapshot.workoutTemplateOverrides
+            self.generatedWorkoutPlan = snapshot.generatedWorkoutPlan
             self.sleepEntries = snapshot.sleepEntries
             self.dayOverrides = snapshot.dayOverrides
-            self.subscriptionProvider = subscriptionProvider ?? SubscriptionManager(initial: snapshot.subscription) { entitlement in
+            self.subscriptionProvider = subscriptionProvider ?? Self.defaultSubscriptionProvider(initial: snapshot.subscription) { entitlement in
                 Task { @MainActor in
                     ref.env?.subscription = entitlement
                     ref.env?.save()
@@ -127,9 +143,10 @@ final class AppEnvironment {
             self.paywallComparisonCoachEUR = CoachingConfig.subscriptionMarketingComparisonEUR
             self.workoutSessions = []
             self.workoutTemplateOverrides = []
+            self.generatedWorkoutPlan = nil
             self.sleepEntries = []
             self.dayOverrides = []
-            self.subscriptionProvider = subscriptionProvider ?? SubscriptionManager { entitlement in
+            self.subscriptionProvider = subscriptionProvider ?? Self.defaultSubscriptionProvider { entitlement in
                 Task { @MainActor in
                     ref.env?.subscription = entitlement
                     ref.env?.save()
@@ -406,12 +423,129 @@ final class AppEnvironment {
         save()
     }
 
-    /// The next workout in the rotation (after the most recently completed session).
+    /// The next workout in the rotation (after the most recently completed session in this program).
     var nextWorkoutTemplate: WorkoutTemplateID {
-        let all = WorkoutTemplateID.allCases
-        guard let last = workoutSessions.filter(\.isCompleted).max(by: { $0.startedAt < $1.startedAt }),
-              let index = all.firstIndex(of: last.templateID) else { return all[0] }
-        return all[(index + 1) % all.count]
+        preferences.resolvedProgramID.nextTemplate(after: workoutSessions)
+    }
+
+    func setTrainingStyle(_ style: TrainingStyle) {
+        preferences.trainingStyle = style
+        save()
+    }
+
+    /// Switches the workout split. An in-progress session from the old split is discarded.
+    func setTrainingProgram(_ id: TrainingProgramID) {
+        preferences.trainingProgramID = id
+        if generatedWorkoutPlan?.programID != id {
+            generatedWorkoutPlan = nil
+        }
+        if let active = activeWorkout, !id.templateIDs.contains(active.templateID) {
+            discardActiveWorkout()
+        }
+        save()
+    }
+
+    /// Builds a new plan from the questionnaire. Pass `regenerate: true` to reshuffle with the same answers.
+    func generateWorkoutPlan(
+        volume: TrainingVolume,
+        goal: TrainingGoal,
+        equipment: [GymEquipment],
+        regenerate: Bool
+    ) -> GeneratedWorkoutPlan {
+        let blocked = regenerate ? (generatedWorkoutPlan?.blockedExerciseIDs ?? []) : []
+        let seed = regenerate ? (generatedWorkoutPlan?.seed ?? 0) + 1 : 1
+        return WorkoutPlanGenerator.generate(
+            seed: max(1, seed),
+            volume: volume,
+            goal: goal,
+            equipment: equipment,
+            daysPerWeek: profile.trainingSchedule.trainingDaysPerWeek,
+            blockedIDs: blocked
+        )
+    }
+
+    func applyGeneratedPlan(_ plan: GeneratedWorkoutPlan) {
+        generatedWorkoutPlan = plan
+        preferences.trainingVolume = plan.volume
+        preferences.trainingGoal = plan.goal
+        preferences.gymEquipment = plan.equipment
+        preferences.trainingProgramID = plan.programID
+        preferences.trainingStyle = plan.goal.trainingStyle
+        let ids = Set(plan.days.map(\.templateID))
+        workoutTemplateOverrides.removeAll { ids.contains($0.templateID) }
+        if let active = activeWorkout, !plan.programID.templateIDs.contains(active.templateID) {
+            discardActiveWorkout()
+        }
+        save()
+    }
+
+    /// Snapshot the current library templates so a swap can be saved even before a generated plan exists.
+    func ensureGeneratedPlanForSubstitution() {
+        guard generatedWorkoutPlan == nil else { return }
+        let templates = preferences.resolvedProgramID.templateIDs.map(resolvedTemplate(id:))
+        generatedWorkoutPlan = WorkoutPlanGenerator.snapshotLibraryPlan(
+            programID: preferences.resolvedProgramID,
+            volume: preferences.resolvedTrainingVolume,
+            goal: preferences.resolvedTrainingGoal,
+            equipment: preferences.resolvedGymEquipment,
+            templates: templates
+        )
+    }
+
+    func replacementOptions(templateID: WorkoutTemplateID, exerciseID: String) -> [ExerciseCatalogEntry] {
+        let template = resolvedTemplate(id: templateID)
+        let excluding = Set(template.exercises.map(\.id))
+        let current = template.exercises.first(where: { $0.id == exerciseID })
+        let entry = ExerciseCatalog.entry(id: exerciseID) ?? current.map {
+            ExerciseCatalogEntry(
+                id: $0.id,
+                name: $0.name,
+                muscle: $0.resolvedMuscle ?? .chest,
+                equipment: $0.resolvedEquipment ?? .machines,
+                isCompound: false,
+                isBodyweightMaxReps: $0.isBodyweightMaxReps
+            )
+        }
+        guard let entry else { return [] }
+        return WorkoutPlanGenerator.replacements(
+            for: entry,
+            equipment: Set(generatedWorkoutPlan?.equipment ?? preferences.resolvedGymEquipment),
+            blocked: Set(generatedWorkoutPlan?.blockedExerciseIDs ?? []),
+            excluding: excluding
+        )
+    }
+
+    func replaceExercise(templateID: WorkoutTemplateID, exerciseID: String, with catalogID: String) {
+        ensureGeneratedPlanForSubstitution()
+        guard var plan = generatedWorkoutPlan,
+              let dayIndex = plan.days.firstIndex(where: { $0.templateID == templateID }),
+              let exerciseIndex = plan.days[dayIndex].exercises.firstIndex(where: { $0.catalogID == exerciseID }),
+              let entry = ExerciseCatalog.entry(id: catalogID)
+        else { return }
+        let old = plan.days[dayIndex].exercises[exerciseIndex]
+        if !plan.blockedExerciseIDs.contains(old.catalogID) {
+            plan.blockedExerciseIDs.append(old.catalogID)
+        }
+        let next = GeneratedExercise(entry: entry, defaultSets: old.defaultSets)
+        plan.days[dayIndex].exercises[exerciseIndex] = next
+        generatedWorkoutPlan = plan
+        if let overrideIndex = workoutTemplateOverrides.firstIndex(where: { $0.templateID == templateID }) {
+            if let sets = workoutTemplateOverrides[overrideIndex].setCounts.removeValue(forKey: exerciseID) {
+                workoutTemplateOverrides[overrideIndex].setCounts[catalogID] = sets
+            }
+        }
+        if var active = activeWorkout, active.templateID == templateID,
+           let activeIndex = active.exercises.firstIndex(where: { $0.id == exerciseID }),
+           active.exercises[activeIndex].sets.isEmpty {
+            active.exercises[activeIndex] = WorkoutExerciseLog(
+                id: next.catalogID,
+                name: next.name,
+                plannedSets: next.defaultSets,
+                isBodyweightMaxReps: next.isBodyweightMaxReps
+            )
+            activeWorkout = active
+        }
+        save()
     }
 
     // MARK: - Calm music
@@ -972,6 +1106,7 @@ final class AppEnvironment {
         photoSets = []
         workoutSessions = []
         workoutTemplateOverrides = []
+        generatedWorkoutPlan = nil
         activeWorkout = nil
         workoutRestEndsAt = nil
         pendingStagnationAlerts = []
@@ -1012,7 +1147,12 @@ final class AppEnvironment {
     // MARK: - Workouts
 
     func resolvedTemplate(id: WorkoutTemplateID) -> WorkoutTemplate {
-        let base = WorkoutLibrary.template(id: id)
+        let base: WorkoutTemplate
+        if let day = generatedWorkoutPlan?.day(for: id), !day.exercises.isEmpty {
+            base = WorkoutTemplate(id: id, exercises: day.exercises.map(\.asBlueprint))
+        } else {
+            base = WorkoutLibrary.apply(style: preferences.resolvedTrainingStyle, to: WorkoutLibrary.template(id: id))
+        }
         guard let override = workoutTemplateOverrides.first(where: { $0.templateID == id }) else {
             return base
         }
@@ -1024,6 +1164,10 @@ final class AppEnvironment {
             return next
         }
         return WorkoutTemplate(id: id, exercises: exercises)
+    }
+
+    var activeProgramTemplates: [WorkoutTemplate] {
+        preferences.resolvedProgramID.templateIDs.map(resolvedTemplate(id:))
     }
 
     func updatePlannedSets(templateID: WorkoutTemplateID, exerciseID: String, sets: Int) {
@@ -1208,6 +1352,7 @@ final class AppEnvironment {
             paywallComparisonCoachEUR: paywallComparisonCoachEUR,
             workoutSessions: workoutSessions,
             workoutTemplateOverrides: workoutTemplateOverrides,
+            generatedWorkoutPlan: generatedWorkoutPlan,
             sleepEntries: sleepEntries,
             dayOverrides: dayOverrides
         )
@@ -1484,7 +1629,7 @@ private final class AppEnvironmentRef: @unchecked Sendable {
 
 // MARK: - Tabs
 
-enum MainTab: Hashable {
+enum MainTab: String, Hashable, CaseIterable, Identifiable {
     case today
     case mealPlan
     case log
@@ -1492,6 +1637,45 @@ enum MainTab: Hashable {
     case workout
     case progress
     case coach
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .today: "Today"
+        case .mealPlan: "Meal Plan"
+        case .log: "Log"
+        case .foods: "Foods"
+        case .workout: "Workout"
+        case .progress: "Progress"
+        case .coach: "Coach"
+        }
+    }
+
+    /// Compact dock label so all seven destinations fit without a More overflow.
+    var shortTitle: String {
+        switch self {
+        case .today: "Today"
+        case .mealPlan: "Plan"
+        case .log: "Log"
+        case .foods: "Food"
+        case .workout: "Train"
+        case .progress: "Stats"
+        case .coach: "Coach"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .today: "sun.max.fill"
+        case .mealPlan: "fork.knife"
+        case .log: "square.and.pencil"
+        case .foods: "carrot.fill"
+        case .workout: "dumbbell.fill"
+        case .progress: "chart.line.uptrend.xyaxis"
+        case .coach: "sparkles"
+        }
+    }
 }
 
 // MARK: - Persistence snapshot
@@ -1515,6 +1699,7 @@ private struct PersistedSnapshot: Codable {
     var paywallComparisonCoachEUR: Double
     var workoutSessions: [WorkoutSession]
     var workoutTemplateOverrides: [WorkoutTemplateOverride]
+    var generatedWorkoutPlan: GeneratedWorkoutPlan?
     var sleepEntries: [SleepEntry]
     var dayOverrides: [DayOverride]
 
@@ -1522,7 +1707,7 @@ private struct PersistedSnapshot: Codable {
         case profile, preferences, weightEntries, stepEntries, diaries, mealPlanDays
         case targets, checkIns, chatMessages, planAdjustments, photoSets, customFoods
         case subscription, coachStatusMessage, paywallComparisonTraditionalEUR, paywallComparisonCoachEUR
-        case workoutSessions, workoutTemplateOverrides, sleepEntries, dayOverrides
+        case workoutSessions, workoutTemplateOverrides, generatedWorkoutPlan, sleepEntries, dayOverrides
     }
 
     init(
@@ -1544,6 +1729,7 @@ private struct PersistedSnapshot: Codable {
         paywallComparisonCoachEUR: Double,
         workoutSessions: [WorkoutSession] = [],
         workoutTemplateOverrides: [WorkoutTemplateOverride] = [],
+        generatedWorkoutPlan: GeneratedWorkoutPlan? = nil,
         sleepEntries: [SleepEntry] = [],
         dayOverrides: [DayOverride] = []
     ) {
@@ -1565,6 +1751,7 @@ private struct PersistedSnapshot: Codable {
         self.paywallComparisonCoachEUR = paywallComparisonCoachEUR
         self.workoutSessions = workoutSessions
         self.workoutTemplateOverrides = workoutTemplateOverrides
+        self.generatedWorkoutPlan = generatedWorkoutPlan
         self.sleepEntries = sleepEntries
         self.dayOverrides = dayOverrides
     }
@@ -1589,6 +1776,7 @@ private struct PersistedSnapshot: Codable {
         paywallComparisonCoachEUR = try c.decode(Double.self, forKey: .paywallComparisonCoachEUR)
         workoutSessions = try c.decodeIfPresent([WorkoutSession].self, forKey: .workoutSessions) ?? []
         workoutTemplateOverrides = try c.decodeIfPresent([WorkoutTemplateOverride].self, forKey: .workoutTemplateOverrides) ?? []
+        generatedWorkoutPlan = try c.decodeIfPresent(GeneratedWorkoutPlan.self, forKey: .generatedWorkoutPlan)
         sleepEntries = try c.decodeIfPresent([SleepEntry].self, forKey: .sleepEntries) ?? []
         dayOverrides = try c.decodeIfPresent([DayOverride].self, forKey: .dayOverrides) ?? []
     }

@@ -30,8 +30,8 @@ struct WorkoutCompleteFlow: View {
 
     var body: some View {
         ZStack {
-            MCTheme.Surface.background(colorScheme).ignoresSafeArea()
-            RadialGradient(colors: [tint.opacity(0.25), .clear], center: .top, startRadius: 0, endRadius: 520)
+            MCTheme.Surface.grouped(colorScheme).ignoresSafeArea()
+            RadialGradient(colors: [tint.opacity(0.28), MCTheme.Surface.grouped(colorScheme)], center: .top, startRadius: 0, endRadius: 520)
                 .ignoresSafeArea()
                 .animation(.easeInOut(duration: 0.6), value: step)
 
@@ -52,7 +52,9 @@ struct WorkoutCompleteFlow: View {
                     .padding(.bottom, MCTheme.Spacing.md)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(MCTheme.Surface.primaryText(colorScheme))
+        .interactiveDismissDisabled()
     }
 
     private var stepTransition: AnyTransition {
@@ -139,7 +141,7 @@ private struct CompleteStep: View {
             .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .onAppear(perform: animateIn)
+        .task { animateIn() }
     }
 
     private var durationLabel: String {
@@ -267,9 +269,10 @@ private struct ReviewStep: View {
             .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
             .padding(.bottom, MCTheme.Spacing.md)
         }
-        .onAppear {
+        .task {
             ButtonSounds.play(effect: .whoosh)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { emblemBounce += 1 }
+            try? await Task.sleep(for: .milliseconds(500))
+            emblemBounce += 1
         }
     }
 
@@ -379,7 +382,7 @@ private struct StreakStep: View {
         .padding(.horizontal, MCTheme.Spacing.screenHorizontal)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Workout streak \(completion.streakAfter). \(message.title) \(message.subtitle)")
-        .onAppear(perform: animateIn)
+        .task { animateIn() }
     }
 
     private func animateIn() {

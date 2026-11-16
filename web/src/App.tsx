@@ -12,14 +12,14 @@ import { Progress } from "./screens/Progress";
 import { Today } from "./screens/Today";
 import { Workout } from "./screens/Workout";
 
-const TABS: { id: MainTab; label: string; icon: IconName }[] = [
-  { id: "today", label: "Today", icon: "sun" },
-  { id: "mealPlan", label: "Meal Plan", icon: "fork" },
-  { id: "log", label: "Log", icon: "list" },
-  { id: "foods", label: "Foods", icon: "basket" },
-  { id: "workout", label: "Workout", icon: "dumbbell" },
-  { id: "progress", label: "Progress", icon: "chart" },
-  { id: "coach", label: "Coach", icon: "chat" },
+const TABS: { id: MainTab; label: string; short: string; icon: IconName }[] = [
+  { id: "today", label: "Today", short: "Today", icon: "sun" },
+  { id: "mealPlan", label: "Meal Plan", short: "Plan", icon: "fork" },
+  { id: "log", label: "Log", short: "Log", icon: "edit" },
+  { id: "foods", label: "Foods", short: "Food", icon: "basket" },
+  { id: "workout", label: "Workout", short: "Train", icon: "dumbbell" },
+  { id: "progress", label: "Progress", short: "Stats", icon: "chart" },
+  { id: "coach", label: "Coach", short: "Coach", icon: "sparkle" },
 ];
 
 /** Applies the Light/Dark/System appearance preference and keeps the Android status bar colour in sync. */
@@ -85,17 +85,21 @@ export function App() {
       <main key={s.selectedTab}>{screen}</main>
       <nav className="tabbar" aria-label="Main">
         <div className="tabbar-inner">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              className={s.selectedTab === t.id ? "on" : ""}
-              aria-current={s.selectedTab === t.id ? "page" : undefined}
-              onClick={() => actions.selectTab(t.id)}
-            >
-              <Icon name={t.icon} />
-              {t.label}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const on = s.selectedTab === t.id;
+            return (
+              <button
+                key={t.id}
+                className={on ? "on" : ""}
+                aria-label={t.label}
+                aria-current={on ? "page" : undefined}
+                onClick={() => actions.selectTab(t.id)}
+              >
+                <Icon name={t.icon} />
+                <span className="tab-label">{t.short}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
       <OverlayHost />

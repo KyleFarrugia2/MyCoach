@@ -16,6 +16,8 @@ struct OnboardingFlowView: View {
     @State private var showMinorBlock = false
     @State private var trainingDayCountPreset: Int? = 4
     @State private var generateFoodsForMe = false
+    @State private var draftStyle: TrainingStyle = .hypertrophy
+    @State private var draftProgram: TrainingProgramID = .gymMachines
 
     private let cleanFoodSuggestions = [
         "Chicken breast", "Lean beef", "Rice", "Potatoes", "Pasta", "Oats",
@@ -33,6 +35,7 @@ struct OnboardingFlowView: View {
         case desiredWeight
         case goal
         case trainingDays
+        case trainingProgram
         case activity
         case cleanFoods
         case allergies
@@ -50,6 +53,7 @@ struct OnboardingFlowView: View {
             case .desiredWeight: return "What weight are you working toward?"
             case .goal: return "What is your goal?"
             case .trainingDays: return "How often do you train?"
+            case .trainingProgram: return "How do you want to train?"
             case .activity: return "Average daily steps"
             case .cleanFoods: return "What foods do you want to work with?"
             case .allergies: return "Do you have any food allergies?"
@@ -204,6 +208,8 @@ struct OnboardingFlowView: View {
             }
         case .trainingDays:
             trainingDaysContent
+        case .trainingProgram:
+            trainingProgramContent
         case .activity:
             VStack(spacing: MCTheme.Spacing.sm) {
                 Text("About how many steps do you take on an average day?")
@@ -336,6 +342,78 @@ struct OnboardingFlowView: View {
         }
     }
 
+    private var trainingProgramContent: some View {
+        VStack(alignment: .leading, spacing: MCTheme.Spacing.md) {
+            Text("Pick a style, then a split. You can generate a custom plan later from the Workout tab — including swapping machines you don’t have.")
+                .font(MCTheme.Typography.subheadline)
+                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+            Text("STYLE")
+                .font(MCTheme.Typography.caption)
+                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+            ForEach(TrainingStyle.allCases) { style in
+                Button {
+                    draftStyle = style
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(style.displayName).font(MCTheme.Typography.headline)
+                            Text(style.subtitle).font(MCTheme.Typography.caption)
+                                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+                        }
+                        Spacer()
+                        Image(systemName: draftStyle == style ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(draftStyle == style ? MCTheme.ColorToken.primary : MCTheme.ColorToken.grey400)
+                    }
+                    .padding(MCTheme.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: MCTheme.Radius.md, style: .continuous)
+                            .fill(MCTheme.Surface.elevated(colorScheme))
+                    )
+                }
+                .buttonStyle(SoundPlainButtonStyle())
+            }
+            Text("PROGRAM")
+                .font(MCTheme.Typography.caption)
+                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+                .padding(.top, 6)
+            ForEach(TrainingProgramID.allCases) { program in
+                let recommended = TrainingProgramID.recommended(daysPerWeek: draft.trainingSchedule.trainingDaysPerWeek)
+                Button {
+                    draftProgram = program
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(program.displayName).font(MCTheme.Typography.headline)
+                                if program == recommended {
+                                    Text("Suggested")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(MCTheme.ColorToken.primary.opacity(0.16)))
+                                        .foregroundStyle(MCTheme.ColorToken.primary)
+                                }
+                            }
+                            Text(program.subtitle)
+                                .font(MCTheme.Typography.caption)
+                                .foregroundStyle(MCTheme.Surface.secondaryText(colorScheme))
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        Image(systemName: draftProgram == program ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(draftProgram == program ? MCTheme.ColorToken.primary : MCTheme.ColorToken.grey400)
+                    }
+                    .padding(MCTheme.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: MCTheme.Radius.md, style: .continuous)
+                            .fill(MCTheme.Surface.elevated(colorScheme))
+                    )
+                }
+                .buttonStyle(SoundPlainButtonStyle())
+            }
+        }
+    }
+
     private var cleanFoodsContent: some View {
         VStack(alignment: .leading, spacing: MCTheme.Spacing.md) {
             Text("Tell your coach what foods you actually enjoy eating.")
@@ -418,6 +496,7 @@ struct OnboardingFlowView: View {
                 summaryRow("Name", draft.displayName)
                 summaryRow("Goal", draft.goalPhase.displayName)
                 summaryRow("Training", "\(draft.trainingSchedule.trainingDaysPerWeek) days / week")
+                summaryRow("Program", "\(draftProgram.displayName) · \(draftStyle.displayName)")
                 summaryRow("Meals", "\(CoachingConfig.requiredMealCount) / day")
                 summaryRow("Steps target", "\(draft.stepTarget)")
                 summaryRow("Foods", "\(draft.preferredFoods.count) selected")
@@ -482,6 +561,7 @@ struct OnboardingFlowView: View {
         case .desiredWeight: Double(desiredWeightText.replacingOccurrences(of: ",", with: ".")) != nil
         case .goal: true
         case .trainingDays: !draft.trainingSchedule.trainingDays.isEmpty
+        case .trainingProgram: true
         case .activity: true
         case .cleanFoods: !draft.preferredFoods.isEmpty
         case .allergies: !draft.allergies.isEmpty
@@ -494,6 +574,9 @@ struct OnboardingFlowView: View {
         if step == .dob, draft.isMinor {
             showMinorBlock = true
             return
+        }
+        if step == .trainingDays {
+            draftProgram = TrainingProgramID.recommended(daysPerWeek: draft.trainingSchedule.trainingDaysPerWeek)
         }
         guard let next = Step(rawValue: step.rawValue + 1) else { return }
         withAnimation(MCTheme.Motion.standard) { step = next }
@@ -509,6 +592,8 @@ struct OnboardingFlowView: View {
         draft.hasCompletedOnboarding = true
         draft.updatedAt = Date()
         env.profile = draft
+        env.preferences.trainingStyle = draftStyle
+        env.preferences.trainingProgramID = draftProgram
         env.completeOnboarding()
     }
 

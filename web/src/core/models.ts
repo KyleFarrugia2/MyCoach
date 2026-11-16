@@ -506,6 +506,13 @@ export interface UserPreferences {
   calmingMusic: boolean;
   /** A short, different sound on every button tap. */
   buttonSounds: boolean;
+  /** How the user likes to train. Missing on older saves → hypertrophy. */
+  trainingStyle?: "hypertrophy" | "strength" | "athletic";
+  /** Active workout split. Missing on older saves → gymMachines. */
+  trainingProgramID?: "gymMachines" | "freeWeights" | "upperLower" | "fullBody" | "bodyweight";
+  trainingVolume?: "high" | "low";
+  trainingGoal?: "keepFit" | "bodybuilding" | "powerlifting" | "powerbuilding" | "strength";
+  gymEquipment?: Array<"machines" | "cables" | "barbell" | "dumbbells" | "bodyweight">;
 }
 
 export function mealName(prefs: UserPreferences, slot: MealSlot): string {

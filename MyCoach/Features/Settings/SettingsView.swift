@@ -9,6 +9,8 @@ struct SettingsView: View {
     @State private var showDeleteAccountConfirm = false
     @State private var showExportShare = false
     @State private var exportURL: URL?
+    @State private var showProgramPicker = false
+    @State private var showPlanGenerator = false
     @State private var showPaywall = false
     @State private var showTerms = false
     @State private var showPrivacy = false
@@ -25,6 +27,7 @@ struct SettingsView: View {
         List {
             profileSection
             scheduleSection
+            trainingProgramSection
             coachingSection
             nutritionSection
             soundSection
@@ -74,6 +77,12 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This permanently deletes your local My Coach profile, coaching history, foods and preferences on this device. This cannot be undone.")
+        }
+        .sheet(isPresented: $showProgramPicker) {
+            NavigationStack { WorkoutProgramPicker() }
+        }
+        .sheet(isPresented: $showPlanGenerator) {
+            NavigationStack { WorkoutPlanGeneratorView() }
         }
         .sheet(isPresented: $showPaywall) { PaywallView() }
         .sheet(isPresented: $showTerms) {
@@ -144,6 +153,38 @@ struct SettingsView: View {
             Text("Training Schedule")
         } footer: {
             Text("Choose how often and on which days you train. Your coach plans training, rest days and meals around them — and you can take an emergency rest day from Today whenever you need it.")
+        }
+    }
+
+    private var trainingProgramSection: some View {
+        Section {
+            Button {
+                showPlanGenerator = true
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(env.generatedWorkoutPlan?.goal.displayName ?? env.preferences.resolvedProgramID.displayName)
+                            .foregroundStyle(MCTheme.Surface.primaryText(colorScheme))
+                        Text(env.generatedWorkoutPlan?.summaryLine ?? "\(env.preferences.resolvedTrainingStyle.displayName) · \(env.preferences.resolvedProgramID.templateIDs.count) sessions")
+                            .font(MCTheme.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("Generate")
+                        .font(MCTheme.Typography.callout)
+                        .foregroundStyle(MCTheme.ColorToken.primary)
+                }
+            }
+            Button {
+                showProgramPicker = true
+            } label: {
+                Text("Change program or style")
+                    .foregroundStyle(MCTheme.ColorToken.primary)
+            }
+        } header: {
+            Text("Workout Program")
+        } footer: {
+            Text("Generate a custom split from volume, goal and equipment. If a machine is missing, swap it for another exercise on the same muscle. Logged workouts stay in Progress.")
         }
     }
 

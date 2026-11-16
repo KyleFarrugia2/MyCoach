@@ -19,6 +19,9 @@ import { actions, useApp } from "../state/store";
 import { FoodRow, Icon, Segmented, Sheet, Toggle, confirmDialog, toast } from "../ui/kit";
 import { CustomFoodEditor } from "./FoodSheets";
 import { PRIVACY, Paywall, TERMS } from "./Paywall";
+import { PlanGenerator, TrainingSetup } from "./Workout";
+import { TrainingProgramInfo, TrainingStyleInfo, trainingProgramOf, trainingStyleOf } from "../engines/workout";
+import { planSummary } from "../engines/exerciseCatalog";
 
 const SUBSCRIPTION_LABEL: Record<SubscriptionStatus, string> = {
   trial: "Trial",
@@ -70,6 +73,8 @@ export function Settings() {
   const p = s.profile;
   const [customFoods, setCustomFoods] = useState(false);
   const [paywall, setPaywall] = useState(false);
+  const [training, setTraining] = useState(false);
+  const [generator, setGenerator] = useState(false);
   const [legal, setLegal] = useState<"terms" | "privacy" | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
@@ -192,6 +197,21 @@ export function Settings() {
             })}
           </div>
         </div>
+        <button className="list-row" onClick={() => setGenerator(true)}>
+          <div className="grow stack-sm" style={{ gap: 2 }}>
+            <span>Workout program</span>
+            <span className="caption">
+              {s.generatedWorkoutPlan
+                ? planSummary(s.generatedWorkoutPlan)
+                : `${TrainingProgramInfo[trainingProgramOf(s.preferences)].name} · ${TrainingStyleInfo[trainingStyleOf(s.preferences)].name}`}
+            </span>
+          </div>
+          <span className="muted">Generate</span>
+        </button>
+        <button className="list-row" onClick={() => setTraining(true)}>
+          <span className="grow">Change program or style</span>
+          <span className="muted">Open</span>
+        </button>
         <div className="list-row">
           <span className="grow">Step target</span>
           <div className="row">
@@ -391,6 +411,8 @@ export function Settings() {
       </div>
 
       {customFoods && <CustomFoodsList onClose={() => setCustomFoods(false)} />}
+      {training && <TrainingSetup onClose={() => setTraining(false)} />}
+      {generator && <PlanGenerator onClose={() => setGenerator(false)} />}
       {paywall && <Paywall onClose={() => setPaywall(false)} />}
       {legal && (
         <Sheet title={legal === "terms" ? "Terms of Use" : "Privacy Policy"} onClose={() => setLegal(null)}>

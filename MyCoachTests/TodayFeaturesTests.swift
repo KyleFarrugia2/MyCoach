@@ -168,11 +168,21 @@ final class TodayFeaturesTests: XCTestCase {
     // MARK: - Button sounds (designated, not random)
 
     func testEveryTabHasItsOwnDesignatedSound() {
-        let all: [MainTab] = [.today, .mealPlan, .log, .foods, .workout, .progress, .coach]
+        let all = MainTab.allCases
         let sounds = all.map(ButtonSound.init(tab:))
         XCTAssertEqual(Set(sounds).count, all.count, "each tab has a distinct sound")
         XCTAssertFalse(sounds.contains(.nav), "the nav bar sound is reserved for the tab bar")
         XCTAssertEqual(ButtonSound(tab: .workout), .workout)
         XCTAssertEqual(ButtonSound.allCases.count, 9)
+    }
+
+    func testDockShowsSevenDestinationsWithoutMore() {
+        XCTAssertEqual(MainTab.allCases.count, 7)
+        XCTAssertEqual(Set(MainTab.allCases.map(\.shortTitle)).count, 7)
+        XCTAssertFalse(MainTab.allCases.map(\.title).contains("More"))
+        XCTAssertEqual(MainTab.mealPlan.shortTitle, "Plan")
+        XCTAssertEqual(MainTab.foods.shortTitle, "Food")
+        XCTAssertEqual(MainTab.workout.shortTitle, "Train")
+        XCTAssertEqual(MainTab.progress.shortTitle, "Stats")
     }
 }

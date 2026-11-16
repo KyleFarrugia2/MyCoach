@@ -18,13 +18,15 @@ struct ActiveWorkoutView: View {
 
     var body: some View {
         ZStack {
-            workoutStack
             if let completion {
                 WorkoutCompleteFlow(completion: completion) { isPresented = false }
-                    .transition(.opacity.combined(with: .scale(scale: 1.04)))
-                    .zIndex(1)
+                    .transition(.opacity)
+            } else {
+                workoutStack
             }
         }
+        .animation(.easeOut(duration: 0.28), value: completion != nil)
+        .background(MCTheme.Surface.grouped(colorScheme).ignoresSafeArea())
     }
 
     private var workoutStack: some View {
@@ -262,11 +264,9 @@ struct ActiveWorkoutView: View {
         let stagnant = env.finishActiveWorkout()
         // The progress review screen covers stagnation, so skip the separate "No Progress" alert.
         env.acknowledgeStagnationAlerts()
-        guard let saved = env.workoutSessions.first(where: { $0.id == session.id }) else {
-            isPresented = false
-            return
-        }
-        withAnimation(.easeOut(duration: 0.35)) {
+        var saved = env.workoutSessions.first(where: { $0.id == session.id }) ?? session
+        if saved.completedAt == nil { saved.completedAt = Date() }
+        withAnimation(.easeOut(duration: 0.28)) {
             completion = WorkoutCompletion(
                 session: saved,
                 previous: previous,

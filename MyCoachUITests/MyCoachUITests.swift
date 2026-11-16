@@ -51,18 +51,19 @@ final class MyCoachUITests: XCTestCase {
 
     /// Navigation stub for main tabs when onboarding is already complete.
     func testCriticalJourneyTabBarIfPresent() throws {
-        let tabBar = app.tabBars.firstMatch
+        let tabBar = app.descendants(matching: .any)["MainTabBar"]
         guard tabBar.waitForExistence(timeout: 3) else {
             throw XCTSkip("Tab bar not present — likely first-launch onboarding")
         }
 
-        let candidates = ["Today", "Meal Plan", "Log", "Progress", "Coach"]
-        let available = candidates.filter { app.tabBars.buttons[$0].exists }
+        let candidates = ["Today", "Meal Plan", "Log", "Foods", "Workout", "Progress", "Coach"]
+        let available = candidates.filter { app.buttons[$0].exists }
         XCTAssertFalse(available.isEmpty, "Expected at least one main tab")
+        XCTAssertFalse(app.buttons["More"].exists, "Custom dock must show every tab without a More overflow")
 
         if let first = available.first {
-            app.tabBars.buttons[first].tap()
-            XCTAssertTrue(app.tabBars.buttons[first].isSelected || app.exists)
+            app.buttons[first].tap()
+            XCTAssertTrue(app.buttons[first].isSelected || app.exists)
         }
     }
 }

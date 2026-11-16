@@ -19,6 +19,15 @@ import {
 import { UnitConversion, parseDecimal } from "../engines/units";
 import { actions, getState } from "../state/store";
 import { Button, Card, Icon, NumberInput, Segmented, SelectRow, confirmDialog } from "../ui/kit";
+import {
+  TRAINING_PROGRAMS,
+  TRAINING_STYLES,
+  TrainingProgramInfo,
+  TrainingStyleInfo,
+  recommendedProgram,
+  type TrainingProgramID,
+  type TrainingStyle,
+} from "../engines/workout";
 
 const STEPS = [
   "welcome",
@@ -30,6 +39,7 @@ const STEPS = [
   "desiredWeight",
   "goal",
   "trainingDays",
+  "trainingProgram",
   "activity",
   "cleanFoods",
   "allergies",
@@ -48,6 +58,7 @@ const TITLES: Record<Step, string> = {
   desiredWeight: "What weight are you working toward?",
   goal: "What is your goal?",
   trainingDays: "How often do you train?",
+  trainingProgram: "How do you want to train?",
   activity: "Average daily steps",
   cleanFoods: "What foods do you want to work with?",
   allergies: "Do you have any food allergies?",
@@ -94,6 +105,8 @@ export function Onboarding() {
   const [customFood, setCustomFood] = useState("");
   const [preset, setPreset] = useState<number | null>(draft.trainingDays.length);
   const [generateForMe, setGenerateForMe] = useState(false);
+  const [draftStyle, setDraftStyle] = useState<TrainingStyle>("hypertrophy");
+  const [draftProgram, setDraftProgram] = useState<TrainingProgramID>("gymMachines");
 
   const step = STEPS[stepIndex];
   const patch = (p: Partial<UserProfile>) => setDraft((d) => ({ ...d, ...p }));
@@ -149,6 +162,9 @@ export function Onboarding() {
       });
       return;
     }
+    if (step === "trainingDays") {
+      setDraftProgram(recommendedProgram(d.trainingDays.length));
+    }
     if (stepIndex < STEPS.length - 1) {
       setStepIndex(stepIndex + 1);
       window.scrollTo(0, 0);
@@ -158,6 +174,8 @@ export function Onboarding() {
   function finish() {
     const d = synced();
     actions.updateProfile(d);
+    actions.setTrainingStyle(draftStyle);
+    actions.setTrainingProgram(draftProgram);
     actions.completeOnboarding();
   }
 
@@ -359,6 +377,34 @@ export function Onboarding() {
             })}
           </div>
         );
+      case "trainingProgram": {
+        const suggested = recommendedProgram(draft.trainingDays.length);
+        return (
+          <div className="stack">
+            <p className="sub">Pick a style, then a split. You can generate a custom plan later from the Workout tab — including swapping machines you don’t have.</p>
+            <p className="caption">STYLE</p>
+            {TRAINING_STYLES.map((id) => (
+              <SelectRow
+                key={id}
+                title={TrainingStyleInfo[id].name}
+                subtitle={TrainingStyleInfo[id].subtitle}
+                selected={draftStyle === id}
+                onClick={() => setDraftStyle(id)}
+              />
+            ))}
+            <p className="caption">PROGRAM</p>
+            {TRAINING_PROGRAMS.map((id) => (
+              <SelectRow
+                key={id}
+                title={id === suggested ? `${TrainingProgramInfo[id].name} · Suggested` : TrainingProgramInfo[id].name}
+                subtitle={TrainingProgramInfo[id].subtitle}
+                selected={draftProgram === id}
+                onClick={() => setDraftProgram(id)}
+              />
+            ))}
+          </div>
+        );
+      }
       case "activity":
         return (
           <div className="stack">
@@ -463,6 +509,7 @@ export function Onboarding() {
           ["Name", draft.displayName],
           ["Goal", GoalPhaseInfo[draft.goalPhase].name],
           ["Training", `${draft.trainingDays.length} days / week`],
+          ["Program", `${TrainingProgramInfo[draftProgram].name} · ${TrainingStyleInfo[draftStyle].name}`],
           ["Meals", `${CoachingConfig.requiredMealCount} / day`],
           ["Steps target", draft.stepTarget.toLocaleString()],
           ["Foods", `${draft.preferredFoods.length} selected`],

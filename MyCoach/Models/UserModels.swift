@@ -107,6 +107,24 @@ struct UserPreferences: Codable, Equatable, Sendable {
         set { buttonSoundsSetting = newValue }
     }
 
+    /// How the user likes to train. Missing on older saves → hypertrophy.
+    var trainingStyle: TrainingStyle?
+    /// Active workout split. Missing on older saves → gym machines PPL.
+    var trainingProgramID: TrainingProgramID?
+    /// Questionnaire answers for generated plans. Missing on older saves.
+    var trainingVolume: TrainingVolume?
+    var trainingGoal: TrainingGoal?
+    var gymEquipment: [GymEquipment]?
+
+    var resolvedTrainingStyle: TrainingStyle { trainingStyle ?? .hypertrophy }
+    var resolvedProgramID: TrainingProgramID { trainingProgramID ?? .gymMachines }
+    var resolvedTrainingVolume: TrainingVolume { trainingVolume ?? .high }
+    var resolvedTrainingGoal: TrainingGoal { trainingGoal ?? .bodybuilding }
+    var resolvedGymEquipment: [GymEquipment] {
+        let picked = gymEquipment ?? Array(GymEquipment.typicalGym)
+        return picked.isEmpty ? Array(GymEquipment.typicalGym) : picked
+    }
+
     func mealName(for slot: MealSlot) -> String {
         customMealNames[slot.rawValue] ?? slot.displayName
     }

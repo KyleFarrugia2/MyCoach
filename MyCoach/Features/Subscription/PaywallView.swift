@@ -1,4 +1,3 @@
-import StoreKit
 import SwiftUI
 
 struct PaywallView: View {

@@ -1,16 +1,154 @@
 import type { Day } from "../core/dates";
 import { fmt } from "../core/models";
 
-/** Port of WorkoutModels.swift. */
-export type WorkoutTemplateID = "pushA" | "pullA" | "legsA" | "upper" | "legsB";
-export const TEMPLATE_IDS: WorkoutTemplateID[] = ["pushA", "pullA", "legsA", "upper", "legsB"];
+/** Port of WorkoutModels.swift / TrainingProgram.swift. */
+export type WorkoutTemplateID =
+  | "pushA"
+  | "pullA"
+  | "legsA"
+  | "upper"
+  | "legsB"
+  | "fwPush"
+  | "fwPull"
+  | "fwLegs"
+  | "ulUpperA"
+  | "ulLowerA"
+  | "ulUpperB"
+  | "ulLowerB"
+  | "fbA"
+  | "fbB"
+  | "fbC"
+  | "bwFullA"
+  | "bwFullB"
+  | "bwFullC";
+
+export const TEMPLATE_IDS: WorkoutTemplateID[] = [
+  "pushA",
+  "pullA",
+  "legsA",
+  "upper",
+  "legsB",
+  "fwPush",
+  "fwPull",
+  "fwLegs",
+  "ulUpperA",
+  "ulLowerA",
+  "ulUpperB",
+  "ulLowerB",
+  "fbA",
+  "fbB",
+  "fbC",
+  "bwFullA",
+  "bwFullB",
+  "bwFullC",
+];
+
 export const TemplateName: Record<WorkoutTemplateID, string> = {
   pushA: "Push A",
   pullA: "Pull A",
   legsA: "Legs A",
   upper: "Upper",
   legsB: "Legs B",
+  fwPush: "Push",
+  fwPull: "Pull",
+  fwLegs: "Legs",
+  ulUpperA: "Upper A",
+  ulLowerA: "Lower A",
+  ulUpperB: "Upper B",
+  ulLowerB: "Lower B",
+  fbA: "Full Body A",
+  fbB: "Full Body B",
+  fbC: "Full Body C",
+  bwFullA: "Home A",
+  bwFullB: "Home B",
+  bwFullC: "Home C",
 };
+
+export const TemplateFocus: Record<WorkoutTemplateID, string> = {
+  pushA: "Chest · shoulders · triceps",
+  pullA: "Back · biceps · core",
+  legsA: "Quads · glutes · hamstrings",
+  upper: "Chest · back · arms",
+  legsB: "Quads · glutes · hamstrings",
+  fwPush: "Chest · shoulders · triceps",
+  fwPull: "Back · biceps · core",
+  fwLegs: "Quads · glutes · hamstrings",
+  ulUpperA: "Chest · back · arms",
+  ulLowerA: "Squat · hinge · calves",
+  ulUpperB: "Chest · back · arms",
+  ulLowerB: "Squat · hinge · calves",
+  fbA: "Squat · press · row",
+  fbB: "Hinge · overhead · pull",
+  fbC: "Front squat · incline · lats",
+  bwFullA: "Push-up · squat · core",
+  bwFullB: "Pull · lunge · hips",
+  bwFullC: "Split squat · push · carry",
+};
+
+export type TrainingStyle = "hypertrophy" | "strength" | "athletic";
+export const TRAINING_STYLES: TrainingStyle[] = ["hypertrophy", "strength", "athletic"];
+export const TrainingStyleInfo: Record<TrainingStyle, { name: string; subtitle: string }> = {
+  hypertrophy: { name: "Build muscle", subtitle: "Moderate sets, more isolation, 8–12 reps." },
+  strength: { name: "Get stronger", subtitle: "Heavier compounds, extra top sets, fewer extras." },
+  athletic: { name: "Stay athletic", subtitle: "The same lifts plus a short conditioning finisher." },
+};
+
+export type TrainingProgramID = "gymMachines" | "freeWeights" | "upperLower" | "fullBody" | "bodyweight";
+export const TRAINING_PROGRAMS: TrainingProgramID[] = ["gymMachines", "freeWeights", "upperLower", "fullBody", "bodyweight"];
+export const TrainingProgramInfo: Record<
+  TrainingProgramID,
+  { name: string; subtitle: string; equipment: string; recommendedDays: number; templateIDs: WorkoutTemplateID[] }
+> = {
+  gymMachines: {
+    name: "Gym machines",
+    subtitle: "The original 5-day machine split (Push, Pull, Legs, Upper, Legs).",
+    equipment: "Cables, machines, some free weights",
+    recommendedDays: 5,
+    templateIDs: ["pushA", "pullA", "legsA", "upper", "legsB"],
+  },
+  freeWeights: {
+    name: "Free weights",
+    subtitle: "Barbell and dumbbell Push / Pull / Legs.",
+    equipment: "Barbell, dumbbells, bench, rack",
+    recommendedDays: 3,
+    templateIDs: ["fwPush", "fwPull", "fwLegs"],
+  },
+  upperLower: {
+    name: "Upper / lower",
+    subtitle: "Four sessions: two upper, two lower.",
+    equipment: "Barbell, dumbbells, machines",
+    recommendedDays: 4,
+    templateIDs: ["ulUpperA", "ulLowerA", "ulUpperB", "ulLowerB"],
+  },
+  fullBody: {
+    name: "Full body",
+    subtitle: "Three full-body days — best if you train 2–3× a week.",
+    equipment: "Barbell and dumbbells",
+    recommendedDays: 3,
+    templateIDs: ["fbA", "fbB", "fbC"],
+  },
+  bodyweight: {
+    name: "Home / bodyweight",
+    subtitle: "No gym. Push-ups, rows, squats and core.",
+    equipment: "Floor space, a bar if you have one",
+    recommendedDays: 3,
+    templateIDs: ["bwFullA", "bwFullB", "bwFullC"],
+  },
+};
+
+export function recommendedProgram(daysPerWeek: number): TrainingProgramID {
+  if (daysPerWeek <= 3) return "fullBody";
+  if (daysPerWeek === 4) return "upperLower";
+  return "gymMachines";
+}
+
+export function trainingStyleOf(prefs: { trainingStyle?: TrainingStyle }): TrainingStyle {
+  return prefs.trainingStyle ?? "hypertrophy";
+}
+
+export function trainingProgramOf(prefs: { trainingProgramID?: TrainingProgramID }): TrainingProgramID {
+  return prefs.trainingProgramID ?? "gymMachines";
+}
 
 export interface ExerciseBlueprint {
   id: string;
@@ -99,7 +237,179 @@ export const WORKOUT_LIBRARY: WorkoutTemplate[] = [
       ex("Rope crunch", 2),
     ],
   },
+  {
+    id: "fwPush",
+    name: "Push",
+    exercises: [
+      ex("Barbell bench press", 3),
+      ex("Overhead press", 3),
+      ex("Incline dumbbell press", 2),
+      ex("Dumbbell lateral raise", 2),
+      ex("Tricep pushdown", 2),
+      ex("Dip", 2),
+    ],
+  },
+  {
+    id: "fwPull",
+    name: "Pull",
+    exercises: [
+      ex("Conventional deadlift", 3),
+      ex("Barbell row", 3),
+      ex("Pull-up", 2),
+      ex("Face pull", 2),
+      ex("Dumbbell curl", 2),
+      ex("Hammer curl", 2),
+    ],
+  },
+  {
+    id: "fwLegs",
+    name: "Legs",
+    exercises: [
+      ex("Back squat", 3),
+      ex("Romanian deadlift", 3),
+      ex("Walking lunge", 2),
+      ex("Lying leg curl", 2),
+      ex("Standing calf raise", 2),
+      ex("Plank", 2, true),
+    ],
+  },
+  {
+    id: "ulUpperA",
+    name: "Upper A",
+    exercises: [
+      ex("Barbell bench press", 3),
+      ex("Barbell row", 3),
+      ex("Overhead press", 2),
+      ex("Pull-up", 2),
+      ex("Lateral raise", 2),
+      ex("Barbell curl", 2),
+    ],
+  },
+  {
+    id: "ulLowerA",
+    name: "Lower A",
+    exercises: [
+      ex("Back squat", 3),
+      ex("Romanian deadlift", 3),
+      ex("Leg press", 2),
+      ex("Seated leg curl", 2),
+      ex("Standing calf raise", 2),
+      ex("Sit-up", 2, true),
+    ],
+  },
+  {
+    id: "ulUpperB",
+    name: "Upper B",
+    exercises: [
+      ex("Incline dumbbell press", 3),
+      ex("Lat pulldown", 3),
+      ex("Seated dumbbell press", 2),
+      ex("Chest-supported row", 2),
+      ex("Overhead tricep extension", 2),
+      ex("Rear delt flye", 2),
+    ],
+  },
+  {
+    id: "ulLowerB",
+    name: "Lower B",
+    exercises: [
+      ex("Front squat", 3),
+      ex("Hip thrust", 3),
+      ex("Walking lunge", 2),
+      ex("Leg extension", 2),
+      ex("Seated calf raise", 2),
+      ex("Hanging leg raise", 2, true),
+    ],
+  },
+  {
+    id: "fbA",
+    name: "Full Body A",
+    exercises: [
+      ex("Back squat", 3),
+      ex("Barbell bench press", 3),
+      ex("Barbell row", 3),
+      ex("Romanian deadlift", 2),
+      ex("Plank", 2, true),
+    ],
+  },
+  {
+    id: "fbB",
+    name: "Full Body B",
+    exercises: [
+      ex("Conventional deadlift", 3),
+      ex("Overhead press", 3),
+      ex("Pull-up", 3),
+      ex("Walking lunge", 2),
+      ex("Dumbbell curl", 2),
+    ],
+  },
+  {
+    id: "fbC",
+    name: "Full Body C",
+    exercises: [
+      ex("Front squat", 3),
+      ex("Incline dumbbell press", 3),
+      ex("Lat pulldown", 3),
+      ex("Hip thrust", 2),
+      ex("Lateral raise", 2),
+    ],
+  },
+  {
+    id: "bwFullA",
+    name: "Home A",
+    exercises: [
+      ex("Push-up", 3, true),
+      ex("Inverted row", 3, true),
+      ex("Bodyweight squat", 3, true),
+      ex("Glute bridge", 2, true),
+      ex("Pike push-up", 2, true),
+      ex("Hollow hold", 2, true),
+    ],
+  },
+  {
+    id: "bwFullB",
+    name: "Home B",
+    exercises: [
+      ex("Decline push-up", 3, true),
+      ex("Chin-up", 3, true),
+      ex("Reverse lunge", 3, true),
+      ex("Hip thrust", 2, true),
+      ex("Bench dip", 2, true),
+      ex("Hanging leg raise", 2, true),
+    ],
+  },
+  {
+    id: "bwFullC",
+    name: "Home C",
+    exercises: [
+      ex("Diamond push-up", 3, true),
+      ex("Superman", 3, true),
+      ex("Bulgarian split squat", 3, true),
+      ex("Calf raise", 2, true),
+      ex("Side plank", 2, true),
+      ex("Burpee", 2, true),
+    ],
+  },
 ];
+
+export function applyTrainingStyle(style: TrainingStyle, template: WorkoutTemplate): WorkoutTemplate {
+  if (style === "hypertrophy") return template;
+  if (style === "strength") {
+    return {
+      ...template,
+      exercises: template.exercises.map((exercise, index) => {
+        if (index < 2 && !exercise.isBodyweightMaxReps) {
+          return { ...exercise, defaultSets: Math.min(5, Math.max(exercise.defaultSets, 4)) };
+        }
+        if (index >= 3) return { ...exercise, defaultSets: Math.max(1, exercise.defaultSets - 1) };
+        return exercise;
+      }),
+    };
+  }
+  const finisher = ex("Conditioning finisher", 2, true);
+  if (template.exercises.some((e) => e.id === finisher.id)) return template;
+  return { ...template, exercises: [...template.exercises, finisher] };
+}
 
 export interface LoggedSet {
   id: string;
